@@ -1,0 +1,26 @@
+# docker-compose.yml
+version: "3.8"
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - CF_ACCOUNT_ID=${CF_ACCOUNT_ID}
+      - CF_API_TOKEN=${CF_API_TOKEN}
+      - CF_KV_NAMESPACE_ID=${CF_KV_NAMESPACE_ID}
+      - ADMIN_KEY=${ADMIN_KEY:-dev-admin-key}
+      - AUTOPAY_KEY=${AUTOPAY_KEY:-dev-autopay-key}
+      - AUTOPAY_UPI=${AUTOPAY_UPI:-dev@upi}
+      - AUTOPAY_BOT_NAME=${AUTOPAY_BOT_NAME:-PluckDev}
+    volumes:
+      - ./backend:/app
+    command: ["air", "-c", ".air.toml"] # Hot reload with cosmtrek/air
+
+  # Mock Cloudflare KV for local dev
+  kv-mock:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
