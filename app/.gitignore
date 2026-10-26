@@ -1,0 +1,14 @@
+# === app module build outputs ===
+build/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+
+# === signing ===
+*.keystore
+*.jks
+keystore.properties
+release.keystore
+debug.keystore
