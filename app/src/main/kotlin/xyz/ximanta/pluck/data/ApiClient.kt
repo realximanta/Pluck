@@ -51,6 +51,19 @@ class ApiClient(
 
     suspend fun plans(): Result<List<Plan>> = callGet("/api/plans", auth = false)
 
+    suspend fun validateKey(key: String): Result<HistoryResponse> = withContext(Dispatchers.IO) {
+        try {
+            val request = Request.Builder()
+                .url("$baseUrl/api/history")
+                .header("X-App-Key", key.uppercase())
+                .get()
+                .build()
+            execute(request)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun requestQR(planId: String, name: String): Result<QRResponse> =
         callPost("/api/qr", json.encodeToString(QRRequest.serializer(), QRRequest(planId, name)), auth = false)
 
