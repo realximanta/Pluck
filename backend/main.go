@@ -41,11 +41,14 @@ func main() {
 	mux.HandleFunc("GET /api/history", app.HandleHistory)
 	mux.HandleFunc("POST /api/resolve", app.HandleResolve)
 	mux.HandleFunc("POST /api/fetch", app.HandleFetch)
+	mux.HandleFunc("GET /api/plans", app.HandlePublicPlans)
 
 	mux.HandleFunc("GET /admin", app.HandleAdminPage)
 	mux.HandleFunc("GET /admin/keys.json", app.HandleAdminList)
 	mux.HandleFunc("POST /admin/keys", app.HandleAdminCreate)
 	mux.HandleFunc("POST /admin/revoke", app.HandleAdminRevoke)
+
+	mux.HandleFunc("GET /{$}", app.HandleLandingPage)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
