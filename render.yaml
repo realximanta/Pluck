@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: pluck-server
+    runtime: docker
+    plan: free
+    region: oregon
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: CF_ACCOUNT_ID
+        sync: false
+      - key: CF_API_TOKEN
+        sync: false
+      - key: CF_KV_NAMESPACE_ID
+        sync: false
+      - key: ADMIN_KEY
+        sync: false
+      - key: AUTOPAY_KEY
+        sync: false
+      - key: AUTOPAY_UPI
+        sync: false
+      - key: AUTOPAY_BOT_NAME
+        sync: false
+      - key: AUTOPAY_VERIFY_URL
+        sync: false
+      - key: AUTOPAY_QR_URL
+        sync: false
+      - key: PUBLIC_BASE_URL
+        sync: false
