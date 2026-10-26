@@ -38,6 +38,8 @@ func main() {
 	mux.HandleFunc("POST /api/qr", app.HandleQR)
 	mux.HandleFunc("POST /api/verify", app.HandleVerify)
 	mux.HandleFunc("GET /api/history", app.HandleHistory)
+	mux.HandleFunc("POST /api/resolve", app.HandleResolve)
+	mux.HandleFunc("POST /api/fetch", app.HandleFetch)
 
 	mux.HandleFunc("GET /admin", app.HandleAdminPage)
 	mux.HandleFunc("GET /admin/keys.json", app.HandleAdminList)
