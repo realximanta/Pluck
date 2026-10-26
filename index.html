@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pluck — Open source media downloader</title>
+<meta name="description" content="Pluck — open source Android app. Download any media from any website, in any quality, any file type.">
+<meta property="og:title" content="Pluck — Pull any media from anywhere">
+<meta property="og:description" content="Open source Android media downloader. Any platform, any quality, any file type.">
+<meta name="theme-color" content="#020617">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ['Inter','system-ui','sans-serif'],
+        serif: ['Instrument Serif','Georgia','serif'],
+        mono: ['JetBrains Mono','ui-monospace','monospace']
+      },
+      colors: {
+        brand: { 400:'#34d399', 500:'#10b981', 600:'#059669' }
+      }
+    }
+  }
+};
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/aos@2.3.4/dist/aos.css">
+<script src="https://unpkg.com/lucide@0.400.0/dist/umd/lucide.js"></script>
+<style>
+  html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+  body { font-family: 'Inter', system-ui, sans-serif; }
+  .font-display { font-family: 'Instrument Serif', Georgia, serif; letter-spacing: -0.02em; }
+
+  .hero-bg {
+    background:
+      radial-gradient(ellipse 60% 50% at 20% 20%, rgba(16,185,129,0.14), transparent 60%),
+      radial-gradient(ellipse 50% 60% at 80% 80%, rgba(59,130,246,0.09), transparent 60%),
+      radial-gradient(ellipse 80% 40% at 50% 0%, rgba(16,185,129,0.06), transparent 70%);
+  }
+  .grid-pattern {
+    background-image:
+      linear-gradient(rgba(148,163,184,0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148,163,184,0.045) 1px, transparent 1px);
+    background-size: 48px 48px;
+    -webkit-mask-image: radial-gradient(ellipse at center, black 25%, transparent 75%);
+            mask-image: radial-gradient(ellipse at center, black 25%, transparent 75%);
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(22px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .anim-fade-up { animation: fadeUp .75s cubic-bezier(0.22,1,0.36,1) forwards; opacity: 0; }
+  .anim-delay-1 { animation-delay: .05s; }
+  .anim-delay-2 { animation-delay: .2s; }
+  .anim-delay-3 { animation-delay: .35s; }
+  .anim-delay-4 { animation-delay: .5s; }
+  .anim-delay-5 { animation-delay: .65s; }
+
+  .feature-card {
+    transition: transform .35s cubic-bezier(0.22,1,0.36,1),
+                border-color .35s ease,
+                box-shadow .35s ease,
+                background-color .35s ease;
+  }
+  .feature-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(16,185,129,0.35);
+    background-color: rgba(15,23,42,0.65);
+    box-shadow: 0 24px 48px -24px rgba(16,185,129,0.28);
+  }
+
+  .cta-primary { position: relative; overflow: hidden; }
+  .cta-primary::before {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(135deg, transparent, rgba(255,255,255,0.28), transparent);
+    transform: translateX(-120%);
+    transition: transform .65s ease;
+  }
+  .cta-primary:hover::before { transform: translateX(120%); }
+
+  .version-pill {
+    display: inline-flex; align-items: center; gap: .55rem;
+    padding: .4rem .95rem; border-radius: 999px;
+    background: rgba(16,185,129,0.08);
+    border: 1px solid rgba(16,185,129,0.22);
+    font-size: .75rem; font-weight: 500; color: #34d399;
+  }
+  .version-dot {
+    width: 6px; height: 6px; border-radius: 999px; background: #34d399;
+    box-shadow: 0 0 0 0 rgba(52,211,153,.7);
+    animation: pulseDot 2.2s infinite;
+  }
+  @keyframes pulseDot {
+    0%   { box-shadow: 0 0 0 0 rgba(52,211,153,.7); }
+    70%  { box-shadow: 0 0 0 9px rgba(52,211,153,0); }
+    100% { box-shadow: 0 0 0 0 rgba(52,211,153,0); }
+  }
+
+  .stat-number {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(2.5rem, 5vw, 4rem);
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+
+  .divider-gradient {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(148,163,184,0.22), transparent);
+  }
+
+  #app { min-height: 100vh; }
+  .guard-screen {
+    position: fixed; inset: 0; background: #020617; z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+    padding: 2rem; text-align: center;
+  }
+  .guard-inner {
+    max-width: 26rem; padding: 2.25rem;
+    border: 1px solid rgba(239,68,68,0.35);
+    background: rgba(239,68,68,0.06);
+    border-radius: 1rem;
+  }
+  .guard-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.6rem; color: #f87171; margin-bottom: .5rem;
+  }
+  .guard-text { font-size: .875rem; color: #94a3b8; line-height: 1.55; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .01ms !important;
+      transition-duration: .01ms !important;
+    }
+  }
+</style>
+</head>
+<body class="bg-slate-950 text-slate-100 antialiased overflow-x-hidden">
+<div id="app">
+
+  <header class="relative z-20">
+    <nav class="max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">
+      <a href="/" class="flex items-center gap-2.5 group">
+        <div class="w-9 h-9 rounded-lg bg-brand-500 flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:shadow-emerald-500/40 transition-shadow">
+          <span class="text-slate-950 font-extrabold text-lg leading-none">P</span>
+        </div>
+        <span class="font-semibold text-lg tracking-tight">Pluck</span>
+      </a>
+      <div class="hidden md:flex items-center gap-7 text-sm text-slate-400">
+        <a href="#features" class="hover:text-slate-100 transition-colors">Features</a>
+        <a href="#how" class="hover:text-slate-100 transition-colors">How it works</a>
+        <a href="https://github.com/realximanta/Pluck" target="_blank" rel="noopener" class="hover:text-slate-100 transition-colors">Source</a>
+        <a href="https://pluck-server.onrender.com" class="hover:text-slate-100 transition-colors">Product</a>
+      </div>
+    </nav>
+  </header>
+
+  <section class="relative overflow-hidden">
+    <div class="absolute inset-0 hero-bg pointer-events-none"></div>
+    <div class="absolute inset-0 grid-pattern pointer-events-none"></div>
+    <div class="relative max-w-5xl mx-auto px-6 pt-14 pb-24 md:pt-24 md:pb-32 text-center">
+      <div class="anim-fade-up anim-delay-1 inline-flex">
+        <span class="version-pill">
+          <span class="version-dot"></span>
+          <span id="versionPill">Open source · Android</span>
+        </span>
+      </div>
+      <h1 class="anim-fade-up anim-delay-2 font-display text-5xl md:text-7xl lg:text-8xl leading-[1.02] tracking-tight mt-8 mb-6">
+        Pull any media<br>
+        <span class="italic text-brand-400">from anywhere.</span>
+      </h1>
+      <p class="anim-fade-up anim-delay-3 text-lg md:text-xl text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed">
+        YouTube, Instagram, TikTok, Facebook, Pinterest, cloud drives, direct files.
+        Video, audio, image, PDF, zip — any file, any quality, any time.
+      </p>
+      <div class="anim-fade-up anim-delay-4 flex flex-col sm:flex-row items-center justify-center gap-3 mb-8">
+        <a id="apkBtn" href="https://github.com/realximanta/Pluck/releases/latest"
+           class="cta-primary inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-semibold transition shadow-lg shadow-emerald-500/20">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span id="apkBtnText">Download APK</span>
+        </a>
+        <a href="https://pluck-server.onrender.com"
+           class="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl border border-slate-700 hover:border-slate-500 hover:bg-slate-900/50 text-slate-200 font-medium transition">
+          Get a key
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </a>
+      </div>
+      <div id="latestInfo" class="anim-fade-up anim-delay-5 text-xs font-mono text-slate-500"></div>
+    </div>
+  </section>
+
+  <section class="relative border-y border-slate-900/80 bg-slate-950/50">
+    <div class="max-w-6xl mx-auto px-6 py-12">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-8">
+        <div data-aos="fade-up" data-aos-delay="0" class="text-center">
+          <div class="stat-number text-brand-400" data-count="50" data-suffix="+">0</div>
+          <div class="text-xs uppercase tracking-widest text-slate-500 mt-2">Platforms</div>
+        </div>
+        <div data-aos="fade-up" data-aos-delay="100" class="text-center">
+          <div class="stat-number text-brand-400" data-count="8000" data-suffix="+">0</div>
+          <div class="text-xs uppercase tracking-widest text-slate-500 mt-2">Formats</div>
+        </div>
+        <div data-aos="fade-up" data-aos-delay="200" class="text-center">
+          <div class="stat-number text-brand-400" data-count="100" data-suffix="%">0</div>
+          <div class="text-xs uppercase tracking-widest text-slate-500 mt-2">Open source</div>
+        </div>
+        <div data-aos="fade-up" data-aos-delay="300" class="text-center">
+          <div class="stat-number text-brand-400">MIT</div>
+          <div class="text-xs uppercase tracking-widest text-slate-500 mt-2">License</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="features" class="relative max-w-6xl mx-auto px-6 py-24">
+    <div class="text-center mb-16" data-aos="fade-up">
+      <div class="text-xs uppercase tracking-widest text-brand-400 font-semibold mb-3">Built for everything</div>
+      <h2 class="font-display text-4xl md:text-5xl tracking-tight">No platform left behind.</h2>
+    </div>
+    <div class="grid md:grid-cols-3 gap-5">
+      <div class="feature-card bg-slate-900/40 border border-slate-800 rounded-2xl p-7" data-aos="fade-up" data-aos-delay="0">
+        <div class="w-11 h-11 rounded-xl bg-brand-500/10 text-brand-400 flex items-center justify-center mb-5">
+          <i data-lucide="globe-2" class="w-5 h-5"></i>
+        </div>
+        <h3 class="font-semibold text-lg mb-2">Universal resolver</h3>
+        <p class="text-sm text-slate-400 leading-relaxed">Media sites, cloud drives, direct links, HTML pages with embedded media. The backend picks the right path for each URL.</p>
+      </div>
+      <div class="feature-card bg-slate-900/40 border border-slate-800 rounded-2xl p-7" data-aos="fade-up" data-aos-delay="100">
+        <div class="w-11 h-11 rounded-xl bg-brand-500/10 text-brand-400 flex items-center justify-center mb-5">
+          <i data-lucide="sliders-horizontal" class="w-5 h-5"></i>
+        </div>
+        <h3 class="font-semibold text-lg mb-2">Any quality</h3>
+        <p class="text-sm text-slate-400 leading-relaxed">144p to 4K, or audio-only at your chosen bitrate. Preview every available format before you commit.</p>
+      </div>
+      <div class="feature-card bg-slate-900/40 border border-slate-800 rounded-2xl p-7" data-aos="fade-up" data-aos-delay="200">
+        <div class="w-11 h-11 rounded-xl bg-brand-500/10 text-brand-400 flex items-center justify-center mb-5">
+          <i data-lucide="file-archive" class="w-5 h-5"></i>
+        </div>
+        <h3 class="font-semibold text-lg mb-2">Every file type</h3>
+        <p class="text-sm text-slate-400 leading-relaxed">Video, audio, image, PDF, code, zip, tar, apk. Every file class is recognized and organized in device storage.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="how" class="relative max-w-6xl mx-auto px-6 py-24 border-t border-slate-900/80">
+    <div class="text-center mb-16" data-aos="fade-up">
+      <div class="text-xs uppercase tracking-widest text-brand-400 font-semibold mb-3">Three steps</div>
+      <h2 class="font-display text-4xl md:text-5xl tracking-tight">From URL to file.</h2>
+    </div>
+    <div class="grid md:grid-cols-3 gap-8">
+      <div data-aos="fade-up" data-aos-delay="0">
+        <div class="font-display text-6xl text-slate-800 mb-4">01</div>
+        <h3 class="font-semibold text-lg mb-2">Paste the URL</h3>
+        <p class="text-sm text-slate-400 leading-relaxed">Any link works — a YouTube video, an Instagram reel, a Google Drive folder, or a direct file path.</p>
+      </div>
+      <div data-aos="fade-up" data-aos-delay="100">
+        <div class="font-display text-6xl text-slate-800 mb-4">02</div>
+        <h3 class="font-semibold text-lg mb-2">Pick your format</h3>
+        <p class="text-sm text-slate-400 leading-relaxed">The app shows every available quality and file type. Choose video, audio, image, or the full file.</p>
+      </div>
+      <div data-aos="fade-up" data-aos-delay="200">
+        <div class="font-display text-6xl text-slate-800 mb-4">03</div>
+        <h3 class="font-semibold text-lg mb-2">Download</h3>
+        <p class="text-sm text-slate-400 leading-relaxed">Files land in the right folder on your device — Videos, Music, or Downloads. Every fetch is saved to history.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="relative border-t border-slate-900/80 overflow-hidden">
+    <div class="absolute inset-0 hero-bg pointer-events-none opacity-50"></div>
+    <div class="relative max-w-4xl mx-auto px-6 py-24 text-center" data-aos="fade-up">
+      <h2 class="font-display text-4xl md:text-5xl tracking-tight mb-4">Start pulling.</h2>
+      <p class="text-slate-400 max-w-xl mx-auto mb-8">Download the signed APK directly from GitHub Releases, or grab a key from the product site.</p>
+      <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
+        <a id="apkBtnBottom" href="https://github.com/realximanta/Pluck/releases/latest"
+           class="cta-primary inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-semibold transition shadow-lg shadow-emerald-500/20">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span id="apkBtnTextBottom">Download APK</span>
+        </a>
+        <a href="https://pluck-server.onrender.com"
+           class="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl border border-slate-700 hover:border-slate-500 hover:bg-slate-900/50 text-slate-200 font-medium transition">
+          Get a key
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <footer class="border-t border-slate-900/80 bg-slate-950">
+    <div class="max-w-6xl mx-auto px-6 py-12">
+      <div class="grid md:grid-cols-4 gap-8 mb-10">
+        <div class="md:col-span-2">
+          <div class="flex items-center gap-2.5 mb-3">
+            <div class="w-8 h-8 rounded-lg bg-brand-500 flex items-center justify-center">
+              <span class="text-slate-950 font-extrabold text-base leading-none">P</span>
+            </div>
+            <span class="font-semibold">Pluck</span>
+          </div>
+          <p class="text-sm text-slate-500 max-w-sm leading-relaxed">Open source Android media downloader. Any platform, any quality, any file type. Built by Ximanta.</p>
+        </div>
+        <div>
+          <div class="text-xs uppercase tracking-widest text-slate-500 font-semibold mb-3">Project</div>
+          <ul class="space-y-2 text-sm">
+            <li><a href="https://github.com/realximanta/Pluck" target="_blank" rel="noopener" class="text-slate-400 hover:text-slate-100 transition-colors">Source code</a></li>
+            <li><a href="https://github.com/realximanta/Pluck/releases" target="_blank" rel="noopener" class="text-slate-400 hover:text-slate-100 transition-colors">Releases</a></li>
+            <li><a href="https://github.com/realximanta/Pluck/issues" target="_blank" rel="noopener" class="text-slate-400 hover:text-slate-100 transition-colors">Issues</a></li>
+          </ul>
+        </div>
+        <div>
+          <div class="text-xs uppercase tracking-widest text-slate-500 font-semibold mb-3">Product</div>
+          <ul class="space-y-2 text-sm">
+            <li><a href="https://pluck-server.onrender.com" class="text-slate-400 hover:text-slate-100 transition-colors">Buy a key</a></li>
+            <li><a href="https://pluck-server.onrender.com/admin" class="text-slate-400 hover:text-slate-100 transition-colors">Admin</a></li>
+            <li><a href="https://pluck-server.onrender.com/health" class="text-slate-400 hover:text-slate-100 transition-colors">Status</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="divider-gradient mb-6"></div>
+      <div class="flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+        <div>Pluck · Better Call Tuku</div>
+        <div class="font-mono">MIT License · <span id="year"></span></div>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<script src="https://unpkg.com/aos@2.3.4/dist/aos.js"></script>
+<script>
+(function () {
+  'use strict';
+  const REPO = 'realximanta/Pluck';
+
+  function initSite() {
+    try { AOS.init({ duration: 700, easing: 'ease-out-cubic', once: true, offset: 60 }); } catch (e) {}
+    if (window.lucide && lucide.createIcons) { try { lucide.createIcons(); } catch (e) {} }
+    const y = document.getElementById('year'); if (y) y.textContent = new Date().getFullYear();
+    initCounters();
+    loadLatest();
+  }
+  window.__reinitSite = initSite;
+
+  function initCounters() {
+    document.querySelectorAll('[data-count]').forEach(el => {
+      if (el.dataset.animated === '1') return;
+      const io = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            el.dataset.animated = '1';
+            animateCount(el);
+            io.unobserve(el);
+          }
+        });
+      }, { threshold: 0.3 });
+      io.observe(el);
+    });
+  }
+
+  function animateCount(el) {
+    const target = parseInt(el.dataset.count, 10);
+    const suffix = el.dataset.suffix || '';
+    const dur = 1200;
+    const t0 = performance.now();
+    function tick(now) {
+      const t = Math.min(1, (now - t0) / dur);
+      const eased = 1 - Math.pow(1 - t, 3);
+      el.textContent = Math.round(target * eased).toLocaleString() + suffix;
+      if (t < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  async function loadLatest() {
+    try {
+      const r = await fetch('https://api.github.com/repos/' + REPO + '/releases/latest', {
+        headers: { 'Accept': 'application/vnd.github+json' }
+      });
+      if (!r.ok) throw new Error('no release');
+      const rel = await r.json();
+      const apk = (rel.assets || []).find(a => a.name.toLowerCase().endsWith('.apk'));
+      const sizeMB = apk ? (apk.size / 1048576).toFixed(1) : '—';
+      const date = new Date(rel.published_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+      const vTag = rel.tag_name.replace(/^v/, '');
+      const url = apk ? apk.browser_download_url : rel.html_url;
+      const setText = (id, txt) => { const e = document.getElementById(id); if (e) e.textContent = txt; };
+      const setAttr = (id, a, v) => { const e = document.getElementById(id); if (e) e.setAttribute(a, v); };
+      setText('apkBtnText', 'Download v' + vTag);
+      setText('apkBtnTextBottom', 'Download v' + vTag);
+      setAttr('apkBtn', 'href', url);
+      setAttr('apkBtnBottom', 'href', url);
+      setText('latestInfo', rel.tag_name + ' · ' + date + (apk ? ' · ' + sizeMB + ' MB' : ''));
+      setText('versionPill', 'Open source · Android · ' + rel.tag_name);
+    } catch (e) {
+      const i = document.getElementById('latestInfo');
+      if (i) i.textContent = 'No releases yet — check back soon.';
+    }
+  }
+
+  // --- Devtools deterrence ---
+  document.addEventListener('keydown', function (e) {
+    const k = (e.key || '').toLowerCase();
+    const blocked =
+      e.key === 'F12' ||
+      (e.ctrlKey && e.shiftKey && ['i','j','c','k'].includes(k)) ||
+      (e.ctrlKey && ['u','s','p'].includes(k)) ||
+      (e.metaKey && e.altKey && ['i','j','c'].includes(k)) ||
+      (e.metaKey && ['u','s','p'].includes(k));
+    if (blocked) { e.preventDefault(); e.stopPropagation(); return false; }
+  }, true);
+
+  document.addEventListener('contextmenu', function (e) {
+    e.preventDefault(); e.stopPropagation(); return false;
+  }, true);
+
+  let savedHTML = null;
+  let guardShown = false;
+
+  function devtoolsOpen() {
+    const w = window.outerWidth - window.innerWidth;
+    const h = window.outerHeight - window.innerHeight;
+    return w > 160 || h > 160;
+  }
+
+  function showGuard() {
+    if (guardShown) return;
+    const app = document.getElementById('app');
+    if (!app) return;
+    savedHTML = app.innerHTML;
+    guardShown = true;
+    app.innerHTML =
+      '<div class="guard-screen"><div class="guard-inner">' +
+        '<div class="guard-title">Inspect mode detected</div>' +
+        '<div class="guard-text">Please close developer tools to continue browsing Pluck.</div>' +
+      '</div></div>';
+  }
+
+  function hideGuard() {
+    if (!guardShown || savedHTML === null) return;
+    const app = document.getElementById('app');
+    if (!app) return;
+    app.innerHTML = savedHTML;
+    savedHTML = null;
+    guardShown = false;
+    try { window.__reinitSite && window.__reinitSite(); } catch (e) {}
+  }
+
+  setInterval(function () {
+    if (devtoolsOpen()) showGuard(); else hideGuard();
+  }, 400);
+
+  setInterval(function () { try { console.clear(); } catch (e) {} }, 1500);
+
+  try {
+    console.log('%cSTOP', 'color:#ef4444;font-size:48px;font-weight:900;');
+    console.log('%cThis is a browser feature intended for developers. If someone told you to copy-paste something here, it is a scam.', 'font-size:14px;color:#94a3b8;');
+  } catch (e) {}
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initSite);
+  } else {
+    initSite();
+  }
+})();
+</script>
+</body>
+</html>
