@@ -11,7 +11,7 @@ Pull any media from anywhere. Open source Android app with self-hostable backend
 ## Quick Start
 
 ### Backend (Docker)
-\`\`\`bash
+```bash
 cd backend
 docker build -t pluck-server .
 docker run -p 8080:8080 \
@@ -20,13 +20,12 @@ docker run -p 8080:8080 \
   -e CF_KV_NAMESPACE_ID=xxx \
   -e ADMIN_KEY=xxx \
   pluck-server
-\`\`\`
-
+```
 ### Android App
 Download APK from [Releases](https://github.com/realximanta/Pluck/releases)
 
 ## Architecture
-\`\`\`
+```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
 │ Android App │────▶│ Go Backend  │────▶│ Cloudflare  │
 │  (Kotlin)   │     │  (Docker)   │     │     KV      │
@@ -38,7 +37,7 @@ Download APK from [Releases](https://github.com/realximanta/Pluck/releases)
               │ yt-dlp  │   │ Direct  │
               │ resolver│   │  HTTP   │
               └─────────┘   └─────────┘
-\`\`\`
+```
 
 ## Environment Variables
 | Variable | Required | Description |
