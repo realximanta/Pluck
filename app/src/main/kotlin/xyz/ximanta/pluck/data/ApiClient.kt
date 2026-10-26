@@ -3,6 +3,7 @@ package xyz.ximanta.pluck.data
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNamingStrategy
 import okhttp3.MediaType.Companion.toMediaType
@@ -16,7 +17,7 @@ import java.util.concurrent.TimeUnit
 
 class ApiException(
     val statusCode: Int,
-    override val message: String
+    message: String
 ) : Exception(message)
 
 data class FetchResult(
@@ -26,13 +27,6 @@ data class FetchResult(
     val file: File
 )
 
-/**
- * Thin OkHttp wrapper for every backend call.
- *
- * Late-binds the API key via [apiKeyProvider] so login state changes are picked
- * up without recreating the client. The provider returns null when logged out;
- * calls that need auth will fail fast with 401 from the backend.
- */
 class ApiClient(
     private val baseUrl: String = BuildConfig.API_BASE_URL.trimEnd('/'),
     private val apiKeyProvider: () -> String?
@@ -55,11 +49,7 @@ class ApiClient(
         .readTimeout(15, TimeUnit.MINUTES)
         .build()
 
-    // ---- Public endpoints ---------------------------------------------------
-
     suspend fun plans(): Result<List<Plan>> = callGet("/api/plans", auth = false)
-
-    // ---- Purchase flow ------------------------------------------------------
 
     suspend fun requestQR(planId: String, name: String): Result<QRResponse> =
         callPost("/api/qr", json.encodeToString(QRRequest.serializer(), QRRequest(planId, name)), auth = false)
@@ -67,18 +57,11 @@ class ApiClient(
     suspend fun verify(finalAmount: String): Result<VerifyResponse> =
         callPost("/api/verify", json.encodeToString(VerifyRequest.serializer(), VerifyRequest(finalAmount)), auth = false)
 
-    // ---- Authenticated media flow -------------------------------------------
-
     suspend fun history(): Result<HistoryResponse> = callGet("/api/history", auth = true)
 
     suspend fun resolve(url: String): Result<ResolveResponse> =
         callPost("/api/resolve", json.encodeToString(ResolveRequest.serializer(), ResolveRequest(url)), auth = true)
 
-    /**
-     * Stream the response body directly to [destination]. Progress is reported
-     * on the IO dispatcher roughly every 256 KB. [totalBytes] is null when the
-     * server sends a chunked response without Content-Length.
-     */
     suspend fun fetch(
         req: FetchRequest,
         destination: File,
@@ -131,11 +114,10 @@ class ApiClient(
                 Result.success(FetchResult(filename, contentType, bytesRead, destination))
             }
         } catch (e: Exception) {
+            runCatching { if (destination.exists() && destination.length() == 0L) destination.delete() }
             Result.failure(e)
         }
     }
-
-    // ---- Internals ----------------------------------------------------------
 
     private suspend inline fun <reified T> callGet(path: String, auth: Boolean): Result<T> =
         withContext(Dispatchers.IO) {
@@ -205,6 +187,6 @@ class ApiClient(
     companion object {
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
         private val STAR_FILENAME_RE = Regex("""filename\*=UTF-8''([^;]+)""")
-        private val PLAIN_FILENAME_RE = Regex("""filename="([^"]+)"""")
+        private val PLAIN_FILENAME_RE = Regex("filename=\"([^\"]+)\"")
     }
 }
