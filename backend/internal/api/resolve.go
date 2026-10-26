@@ -2,42 +2,47 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os/exec"
+	"net/url"
 	"regexp"
-	"sort"
-	"strconv"
 	"strings"
-	"time"
 )
 
-const resolveTimeout = 20 * time.Second
+// FileClass categorizes the file kind for the app's UI grouping.
+type FileClass string
 
-var urlSchemeRE = regexp.MustCompile(`^https?://`)
+const (
+	ClassVideo    FileClass = "video"
+	ClassAudio    FileClass = "audio"
+	ClassImage    FileClass = "image"
+	ClassArchive  FileClass = "archive"
+	ClassDocument FileClass = "document"
+	ClassCode     FileClass = "code"
+	ClassText     FileClass = "text"
+	ClassOther    FileClass = "other"
+)
 
-// ResolveRequest is the body of POST /api/resolve.
-type ResolveRequest struct {
-	URL string `json:"url"`
-}
-
-// Format is one selectable option returned to the app.
+// Format is one selectable option — matches the app's picker model.
 type Format struct {
-	FormatID  string `json:"format_id"`
-	Quality   string `json:"quality"`
-	Ext       string `json:"ext"`
-	SizeBytes int64  `json:"size_bytes,omitempty"`
-	Width     int    `json:"width,omitempty"`
-	Height    int    `json:"height,omitempty"`
-	Bitrate   int    `json:"bitrate,omitempty"`
-	HasVideo  bool   `json:"has_video"`
-	HasAudio  bool   `json:"has_audio"`
-	Note      string `json:"note,omitempty"`
+	FormatID    string    `json:"format_id"`
+	Quality     string    `json:"quality,omitempty"`
+	Ext         string    `json:"ext,omitempty"`
+	SizeBytes   int64     `json:"size_bytes,omitempty"`
+	Width       int       `json:"width,omitempty"`
+	Height      int       `json:"height,omitempty"`
+	Bitrate     int       `json:"bitrate,omitempty"`
+	HasVideo    bool      `json:"has_video"`
+	HasAudio    bool      `json:"has_audio"`
+	Class       FileClass `json:"class"`
+	Filename    string    `json:"filename,omitempty"`
+	DirectURL   string    `json:"direct_url,omitempty"`
+	ContentType string    `json:"content_type,omitempty"`
+	Note        string    `json:"note,omitempty"`
 }
 
-// ResolveResponse is what the app receives.
+// ResolveResponse is the unified shape for every kind of target.
 type ResolveResponse struct {
 	URL         string   `json:"url"`
 	Platform    string   `json:"platform"`
@@ -45,48 +50,30 @@ type ResolveResponse struct {
 	Thumbnail   string   `json:"thumbnail,omitempty"`
 	DurationSec int      `json:"duration_sec,omitempty"`
 	Uploader    string   `json:"uploader,omitempty"`
+	Method      string   `json:"method"`
 	Video       []Format `json:"video,omitempty"`
 	Audio       []Format `json:"audio,omitempty"`
 	Image       []Format `json:"image,omitempty"`
+	Archive     []Format `json:"archive,omitempty"`
+	Document    []Format `json:"document,omitempty"`
+	Code        []Format `json:"code,omitempty"`
+	Text        []Format `json:"text,omitempty"`
+	Other       []Format `json:"other,omitempty"`
 }
 
-// ytdlpDump is the subset of yt-dlp's --dump-single-json we actually use.
-type ytdlpDump struct {
-	Title       string        `json:"title"`
-	Thumbnail   string        `json:"thumbnail"`
-	Duration    float64       `json:"duration"`
-	Extractor   string        `json:"extractor"`
-	ExtractorKey string       `json:"extractor_key"`
-	Uploader    string        `json:"uploader"`
-	Formats     []ytdlpFormat `json:"formats"`
-	URL         string        `json:"url"`
-	Ext         string        `json:"ext"`
-	Width       int           `json:"width"`
-	Height      int           `json:"height"`
+// ResolveRequest is the body of POST /api/resolve.
+type ResolveRequest struct {
+	URL string `json:"url"`
 }
 
-type ytdlpFormat struct {
-	FormatID   string  `json:"format_id"`
-	FormatNote string  `json:"format_note"`
-	Ext        string  `json:"ext"`
-	Height     int     `json:"height"`
-	Width      int     `json:"width"`
-	VCodec     string  `json:"vcodec"`
-	ACodec     string  `json:"acodec"`
-	Filesize   int64   `json:"filesize"`
-	FilesizeApprox int64 `json:"filesize_approx"`
-	TBR        float64 `json:"tbr"`
-	ABR        float64 `json:"abr"`
-	Protocol   string  `json:"protocol"`
-}
+var urlSchemeRE = regexp.MustCompile(`^https?://`)
 
-// HandleResolve is POST /api/resolve.
+// HandleResolve is POST /api/resolve. Universal — any URL, any file.
 func (a *App) HandleResolve(w http.ResponseWriter, r *http.Request) {
 	if _, err := a.requireAppKey(r); err != nil {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": err.Error()})
 		return
 	}
-
 	var req ResolveRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
@@ -102,191 +89,105 @@ func (a *App) HandleResolve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dump, err := runYtdlpDump(r.Context(), req.URL)
+	u, err := url.Parse(req.URL)
 	if err != nil {
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "resolve failed: " + err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bad url"})
 		return
 	}
 
-	resp := buildResolveResponse(req.URL, dump)
+	resp, err := a.resolveURL(r.Context(), u)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+		return
+	}
+	if resp == nil || emptyResolve(resp) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no downloadable content found"})
+		return
+	}
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// runYtdlpDump runs yt-dlp --dump-single-json with a hard timeout.
-func runYtdlpDump(parent context.Context, mediaURL string) (*ytdlpDump, error) {
-	ctx, cancel := context.WithTimeout(parent, resolveTimeout)
-	defer cancel()
+// resolveURL routes the URL through the resolver chain.
+func (a *App) resolveURL(ctx interface {
+	Deadline() (deadline interface{ IsZero() bool }, ok bool)
+	Done() <-chan struct{}
+	Err() error
+	Value(key interface{}) interface{}
+}, u *url.URL) (*ResolveResponse, error) {
+	// real ctx — typed shim to allow interface{} pass without import cycle
+	c := asContext(ctx)
+	host := strings.ToLower(u.Hostname())
 
-	cmd := exec.CommandContext(ctx, "yt-dlp",
-		"--dump-single-json",
-		"--no-warnings",
-		"--no-playlist",
-		"--no-check-certificates",
-		"--socket-timeout", "10",
-		"--",
-		mediaURL,
-	)
-
-	out, err := cmd.Output()
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			return nil, fmt.Errorf("timeout after %s", resolveTimeout)
+	// 1. Cloud platforms — host-matched, specific resolvers first
+	if resp, matched, err := a.resolveCloud(c, u, host); matched {
+		if err == nil && !emptyResolve(resp) {
+			return resp, nil
 		}
-		if ee, ok := err.(*exec.ExitError); ok {
-			return nil, fmt.Errorf("yt-dlp: %s", truncate(string(ee.Stderr), 300))
-		}
-		return nil, err
+		// Cloud resolver failed — try yt-dlp as fallback below
 	}
 
-	var dump ytdlpDump
-	if err := json.Unmarshal(out, &dump); err != nil {
-		return nil, fmt.Errorf("parse json: %w", err)
+	// 2. Media sites yt-dlp definitely handles
+	if isMediaSiteHost(host) {
+		if resp, err := resolveViaYtdlp(c, u.String()); err == nil && !emptyResolve(resp) {
+			return resp, nil
+		}
+		// fall through to next methods
 	}
-	return &dump, nil
+
+	// 3. Direct file URL (has known extension in path)
+	if looksLikeFileURL(u) {
+		if resp, err := resolveDirect(c, u.String()); err == nil {
+			return resp, nil
+		}
+	}
+
+	// 4. yt-dlp fallback — catches platforms yt-dlp knows even if not in our host list
+	if resp, err := resolveViaYtdlp(c, u.String()); err == nil && !emptyResolve(resp) {
+		return resp, nil
+	}
+
+	// 5. HTML page scrape for embedded/linked media
+	if resp, err := resolveHTML(c, u.String()); err == nil && !emptyResolve(resp) {
+		return resp, nil
+	}
+
+	// 6. Last resort — direct probe (works for direct file links without known ext)
+	if resp, err := resolveDirect(c, u.String()); err == nil {
+		return resp, nil
+	}
+
+	return nil, fmt.Errorf("could not resolve %s by any method", u.String())
 }
 
-// buildResolveResponse categorizes formats into video/audio/image for the app.
-func buildResolveResponse(originalURL string, d *ytdlpDump) ResolveResponse {
-	resp := ResolveResponse{
-		URL:         originalURL,
-		Platform:    detectPlatform(d.Extractor, d.ExtractorKey, originalURL),
-		Title:       d.Title,
-		Thumbnail:   d.Thumbnail,
-		DurationSec: int(d.Duration),
-		Uploader:    d.Uploader,
-	}
-
-	// Some single-image URLs return no formats array — synthesize from top-level.
-	if len(d.Formats) == 0 {
-		if d.URL != "" {
-			f := Format{
-				FormatID:  "default",
-				Ext:       d.Ext,
-				Width:     d.Width,
-				Height:    d.Height,
-				HasVideo:  false,
-				HasAudio:  false,
-				Quality:   fmt.Sprintf("%dx%d", d.Width, d.Height),
-			}
-			if isImageExt(d.Ext) {
-				resp.Image = append(resp.Image, f)
-			} else {
-				resp.Video = append(resp.Video, f)
-			}
-		}
-		return resp
-	}
-
-	for _, f := range d.Formats {
-		hasV := f.VCodec != "" && f.VCodec != "none"
-		hasA := f.ACodec != "" && f.ACodec != "none"
-		size := f.Filesize
-		if size == 0 {
-			size = f.FilesizeApprox
-		}
-		base := Format{
-			FormatID:  f.FormatID,
-			Ext:       f.Ext,
-			SizeBytes: size,
-			Width:     f.Width,
-			Height:    f.Height,
-			HasVideo:  hasV,
-			HasAudio:  hasA,
-		}
-
-		switch {
-		case isImageExt(f.Ext) && !hasV && !hasA:
-			base.Quality = fmt.Sprintf("%dx%d", f.Width, f.Height)
-			resp.Image = append(resp.Image, base)
-
-		case hasV:
-			base.Quality = qualityLabel(f.Height, f.FormatNote)
-			base.Bitrate = int(f.TBR)
-			if hasA {
-				base.Note = "muxed"
-			} else {
-				base.Note = "video-only (merge with audio)"
-			}
-			resp.Video = append(resp.Video, base)
-
-		case hasA:
-			base.Quality = audioLabel(f.ABR, f.FormatNote)
-			base.Bitrate = int(f.ABR)
-			base.Note = "audio-only"
-			resp.Audio = append(resp.Audio, base)
-		}
-	}
-
-	// Sort video by height descending — highest quality first in the app picker.
-	sort.Slice(resp.Video, func(i, j int) bool {
-		return resp.Video[i].Height > resp.Video[j].Height
-	})
-	sort.Slice(resp.Audio, func(i, j int) bool {
-		return resp.Audio[i].Bitrate > resp.Audio[j].Bitrate
-	})
-	sort.Slice(resp.Image, func(i, j int) bool {
-		return (resp.Image[i].Width * resp.Image[i].Height) >
-			(resp.Image[j].Width * resp.Image[j].Height)
-	})
-
-	return resp
-}
-
-func qualityLabel(height int, note string) string {
-	if height > 0 {
-		return strconv.Itoa(height) + "p"
-	}
-	if note != "" {
-		return note
-	}
-	return "unknown"
-}
-
-func audioLabel(abr float64, note string) string {
-	if abr > 0 {
-		return strconv.Itoa(int(abr)) + "kbps"
-	}
-	if note != "" {
-		return note
-	}
-	return "audio"
-}
-
-func isImageExt(ext string) bool {
-	switch strings.ToLower(ext) {
-	case "jpg", "jpeg", "png", "webp", "gif", "heic":
+func emptyResolve(r *ResolveResponse) bool {
+	if r == nil {
 		return true
 	}
-	return false
+	total := len(r.Video) + len(r.Audio) + len(r.Image) + len(r.Archive) +
+		len(r.Document) + len(r.Code) + len(r.Text) + len(r.Other)
+	return total == 0
 }
 
-func detectPlatform(extractor, extractorKey, rawURL string) string {
-	src := strings.ToLower(extractorKey + " " + extractor)
-	switch {
-	case strings.Contains(src, "youtube"):
-		return "youtube"
-	case strings.Contains(src, "instagram"):
-		return "instagram"
-	case strings.Contains(src, "tiktok"):
-		return "tiktok"
-	case strings.Contains(src, "facebook"):
-		return "facebook"
-	case strings.Contains(src, "twitter") || strings.Contains(src, "x.com"):
-		return "twitter"
-	case strings.Contains(src, "pinterest"):
-		return "pinterest"
-	case strings.Contains(src, "reddit"):
-		return "reddit"
-	case strings.Contains(src, "vimeo"):
-		return "vimeo"
-	case strings.Contains(src, "twitch"):
-		return "twitch"
+// isMediaSiteHost flags hosts yt-dlp handles natively.
+func isMediaSiteHost(host string) bool {
+	for _, s := range []string{
+		"youtube.com", "youtu.be", "youtube-nocookie.com", "m.youtube.com",
+		"instagram.com", "tiktok.com", "vt.tiktok.com", "vm.tiktok.com",
+		"facebook.com", "fb.watch", "fb.com", "m.facebook.com",
+		"twitter.com", "x.com", "t.co",
+		"reddit.com", "redd.it", "v.redd.it",
+		"vimeo.com", "dailymotion.com", "dai.ly",
+		"twitch.tv", "clips.twitch.tv",
+		"soundcloud.com", "bandcamp.com",
+		"pinterest.com", "pin.it",
+		"snapchat.com", "linkedin.com", "bilibili.com", "b23.tv",
+		"rumble.com", "odysee.com", "streamable.com", "imgur.com",
+		"tumblr.com", "vk.com", "ok.ru", "weibo.com", "ixigua.com",
+		"douyin.com", "kuaishou.com", "xiaohongshu.com", "xhslink.com",
+	} {
+		if host == s || strings.HasSuffix(host, "."+s) {
+			return true
+		}
 	}
-	if strings.Contains(rawURL, "instagram.com") {
-		return "instagram"
-	}
-	if strings.Contains(rawURL, "tiktok.com") {
-		return "tiktok"
-	}
-	return "web"
+	return false
 }
