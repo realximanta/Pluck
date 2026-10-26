@@ -1,0 +1,60 @@
+# === OS & editors ===
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+*.iml
+.vscode/
+# keep shared IDE config
+!.idea/codeStyles/
+!.idea/inspectionProfiles/
+
+# === Gradle & Android build outputs ===
+.gradle/
+build/
+app/build/
+captures/
+.cxx/
+*.apk
+*.aab
+*.aar
+*.ap_
+*.dex
+*.class
+local.properties
+
+# === Kotlin / Java ===
+*.hprof
+
+# === Signing material (NEVER commit) ===
+*.keystore
+*.jks
+*.p12
+keystore.properties
+release.keystore
+debug.keystore
+
+# === Secrets / env ===
+.env
+.env.local
+.env.*.local
+backend/.env
+google-services.json
+
+# === Go build artifacts ===
+backend/pluck
+backend/pluck.exe
+backend/*.test
+backend/*.out
+
+# === Logs & temp ===
+*.log
+tmp/
+.cache/
+_site/
+
+# === Dependency caches ===
+node_modules/
+.dart_tool/
+.flutter-plugins
