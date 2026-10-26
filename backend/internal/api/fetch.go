@@ -4,6 +4,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -20,11 +21,10 @@ import (
 
 const (
 	fetchTimeout    = 10 * time.Minute
-	maxFetchBytes   = 2 * 1024 * 1024 * 1024 // 2 GB hard cap per request
+	maxFetchBytes   = 2 * 1024 * 1024 * 1024
 	fetchTempPrefix = "pluck-fetch-"
 )
 
-// FetchRequest is the body of POST /api/fetch.
 type FetchRequest struct {
 	URL         string `json:"url"`
 	FormatID    string `json:"format_id,omitempty"`
@@ -40,7 +40,6 @@ type FetchRequest struct {
 	DurationSec int    `json:"duration_sec,omitempty"`
 }
 
-// countingWriter tallies bytes written so we can populate history size.
 type countingWriter struct {
 	w io.Writer
 	n int64
@@ -52,7 +51,6 @@ func (c *countingWriter) Write(p []byte) (int, error) {
 	return n, err
 }
 
-// HandleFetch is POST /api/fetch. Streams the file back to the app.
 func (a *App) HandleFetch(w http.ResponseWriter, r *http.Request) {
 	appKey, err := a.requireAppKey(r)
 	if err != nil {
@@ -61,7 +59,7 @@ func (a *App) HandleFetch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req FetchRequest
-	if err := decodeFetchBody(r, &req); err != nil {
+	if err := json.NewDecoder(io.LimitReader(r.Body, 64*1024)).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
 		return
 	}
@@ -79,7 +77,6 @@ func (a *App) HandleFetch(w http.ResponseWriter, r *http.Request) {
 		req.MediaType = "other"
 	}
 
-	// Per-request deadline — overrides the 120s server-wide WriteTimeout.
 	ctx, cancel := context.WithTimeout(r.Context(), fetchTimeout)
 	defer cancel()
 	if rc := http.NewResponseController(w); rc != nil {
@@ -96,24 +93,6 @@ func (a *App) HandleFetch(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// decodeFetchBody reads the JSON body with a cap.
-func decodeFetchBody(r *http.Request, v interface{}) error {
-	const maxBody = 64 * 1024
-	body, err := io.ReadAll(io.LimitReader(r.Body, maxBody))
-	if err != nil {
-		return err
-	}
-	return jsonUnmarshal(body, v)
-}
-
-// jsonUnmarshal — tiny wrapper so fetch.go doesn't import encoding/json twice.
-func jsonUnmarshal(data []byte, v interface{}) error {
-	dec := newJSONDecoder(bytes.NewReader(data))
-	return dec.Decode(v)
-}
-
-// --- Direct HTTP stream ---------------------------------------------------
-
 func (a *App) streamDirect(ctx context.Context, w http.ResponseWriter, cw *countingWriter, req *FetchRequest, appKey string) {
 	resp, err := getWithContext(ctx, req.DirectURL)
 	if err != nil {
@@ -128,8 +107,6 @@ func (a *App) streamDirect(ctx context.Context, w http.ResponseWriter, cw *count
 	}
 
 	ct := resp.Header.Get("Content-Type")
-	// Guard: reject HTML pages masquerading as files when the caller expects
-	// a media/document, unless the caller explicitly asked for text.
 	if strings.Contains(strings.ToLower(ct), "text/html") && req.MediaType != "text" && req.MediaType != "code" {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "upstream returned html page, not a file"})
 		return
@@ -143,7 +120,6 @@ func (a *App) streamDirect(ctx context.Context, w http.ResponseWriter, cw *count
 
 	size := resp.ContentLength
 	if size <= 0 || size > maxFetchBytes {
-		// Unknown or too large — go chunked
 		size = -1
 	}
 
@@ -158,13 +134,10 @@ func (a *App) streamDirect(ctx context.Context, w http.ResponseWriter, cw *count
 	saveFetchHistory(a, appKey, req, cw.n, filename)
 }
 
-// --- yt-dlp stream --------------------------------------------------------
-
 func (a *App) streamYtdlp(ctx context.Context, w http.ResponseWriter, cw *countingWriter, req *FetchRequest, appKey string) {
 	format := req.FormatID
 	useMerge := req.MergeAudio || strings.Contains(strings.ToLower(req.FormatID), "+")
 
-	// filename + content-type set up front. For yt-dlp the ext comes from request.
 	filename := chooseFilename(req, "", req.URL)
 	if filename == "download" || filepath.Ext(filename) == "" {
 		ext := req.Ext
@@ -211,7 +184,6 @@ func (a *App) streamYtdlp(ctx context.Context, w http.ResponseWriter, cw *counti
 		return
 	}
 
-	// Headers must go out before the first byte. Size unknown → chunked.
 	setDownloadHeaders(w, filename, contentType, -1)
 	w.WriteHeader(http.StatusOK)
 
@@ -230,8 +202,6 @@ func (a *App) streamYtdlp(ctx context.Context, w http.ResponseWriter, cw *counti
 	saveFetchHistory(a, appKey, req, cw.n, filename)
 }
 
-// streamYtdlpMerged downloads to a temp file (yt-dlp merges video+audio with
-// ffmpeg), then streams the completed file to the client.
 func (a *App) streamYtdlpMerged(ctx context.Context, w http.ResponseWriter, cw *countingWriter, req *FetchRequest, appKey, format, filename, contentType string) {
 	if !strings.Contains(format, "+") {
 		format = format + "+bestaudio/best"
@@ -306,10 +276,6 @@ func tempSuffix(req *FetchRequest) string {
 	return "." + ext
 }
 
-// --- shared helpers -------------------------------------------------------
-
-// copyBounded copies with a hard byte cap. Returns error if exceeded or if
-// the source errors mid-stream.
 func copyBounded(ctx context.Context, dst io.Writer, src io.Reader, max int64) error {
 	limited := io.LimitReader(src, max+1)
 	n, err := io.Copy(dst, limited)
@@ -322,8 +288,6 @@ func copyBounded(ctx context.Context, dst io.Writer, src io.Reader, max int64) e
 	return ctx.Err()
 }
 
-// setDownloadHeaders writes the Content-Type, Content-Disposition, and (if
-// known) Content-Length headers.
 func setDownloadHeaders(w http.ResponseWriter, filename, contentType string, size int64) {
 	if contentType == "" {
 		contentType = "application/octet-stream"
@@ -337,14 +301,12 @@ func setDownloadHeaders(w http.ResponseWriter, filename, contentType string, siz
 	}
 }
 
-// dispositionHeader builds the RFC 6266 dual filename form.
 func dispositionHeader(filename string) string {
 	safe := sanitizeFilename(filename)
 	escaped := url.PathEscape(safe)
 	return fmt.Sprintf(`attachment; filename="%s"; filename*=UTF-8''%s`, safe, escaped)
 }
 
-// sanitizeFilename removes bytes that would break the header.
 func sanitizeFilename(s string) string {
 	s = strings.ReplaceAll(s, `"`, "")
 	s = strings.ReplaceAll(s, "\r", "")
@@ -361,7 +323,6 @@ func sanitizeFilename(s string) string {
 	return s
 }
 
-// chooseFilename tries the request, then Content-Disposition, then the URL.
 func chooseFilename(req *FetchRequest, cd, fallbackURL string) string {
 	if req.Filename != "" {
 		return sanitizeFilename(req.Filename)
@@ -380,7 +341,6 @@ func chooseFilename(req *FetchRequest, cd, fallbackURL string) string {
 	return "download"
 }
 
-// extFor returns the file extension for the request, derived from filename.
 func extFor(req *FetchRequest, filename string) string {
 	if req.Ext != "" {
 		return req.Ext
@@ -392,7 +352,6 @@ func extFor(req *FetchRequest, filename string) string {
 	return extForMediaType(req.MediaType)
 }
 
-// extForMediaType returns a sensible default extension per class.
 func extForMediaType(mediaType string) string {
 	switch mediaType {
 	case "video":
@@ -413,16 +372,13 @@ func extForMediaType(mediaType string) string {
 	return "bin"
 }
 
-// mimeForExt returns Content-Type by extension; empty string if unknown.
 func mimeForExt(ext string) string {
 	if ext == "" {
 		return ""
 	}
-	ct := mime.TypeByExtension("." + strings.TrimPrefix(ext, "."))
-	return ct
+	return mime.TypeByExtension("." + strings.TrimPrefix(ext, "."))
 }
 
-// saveFetchHistory writes one history entry asynchronously.
 func saveFetchHistory(a *App, appKey string, req *FetchRequest, size int64, filename string) {
 	if size <= 0 {
 		return
