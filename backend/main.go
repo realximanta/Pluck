@@ -34,8 +34,10 @@ func main() {
 
 	mux.HandleFunc("HEAD /health", app.handleHealthHead)
 	mux.HandleFunc("GET /health", app.handleHealthGet)
+
 	mux.HandleFunc("POST /api/qr", app.HandleQR)
 	mux.HandleFunc("POST /api/verify", app.HandleVerify)
+	mux.HandleFunc("GET /api/history", app.HandleHistory)
 
 	mux.HandleFunc("GET /admin", app.HandleAdminPage)
 	mux.HandleFunc("GET /admin/keys.json", app.HandleAdminList)
