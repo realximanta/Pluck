@@ -16,50 +16,54 @@ type Config struct {
 
 	AdminKey string
 
-	AutopayKey      string
-	AutopayUPI      string
-	AutopayBotName  string
+	AutopayKey       string
+	AutopayUPI       string
+	AutopayBotName   string
 	AutopayVerifyURL string
 	AutopayQRURL     string
 
 	PublicBaseURL string
 }
 
-// Load reads all env vars, returns every missing one at once.
+func get(name string) string {
+	return strings.TrimSpace(os.Getenv(name))
+}
+
+func getOr(name, def string) string {
+	v := get(name)
+	if v == "" {
+		return def
+	}
+	return v
+}
+
 func Load() (*Config, error) {
 	var missing []string
 
-	req := func(name string) string {
-		v := strings.TrimSpace(os.Getenv(name))
+	require := func(name string) string {
+		v := get(name)
 		if v == "" {
 			missing = append(missing, name)
 		}
 		return v
 	}
-	opt := func(name, def string) string {
-		v := strings.TrimSpace(os.Getenv(name))
-		if v == "" {
-			return def
-		}
-		return v
-	}
 
 	cfg := &Config{
-		Port: opt("PORT", "8080"),
+		Port: getOr("PORT", "8080"),
 
-		CFAccountID:     req("CF_ACCOUNT_ID"),
-		CFAPIToken:      req("CF_API_TOKEN"),
-		CFKVNamespaceID: req("CF_KV_NAMESPACE_ID"),
+		CFAccountID:     require("CF_ACCOUNT_ID"),
+		CFAPIToken:      require("CF_API_TOKEN"),
+		CFKVNamespaceID: require("CF_KV_NAMESPACE_ID"),
 
-		AdminKey: req("ADMIN_KEY"),
+		AdminKey: require("ADMIN_KEY"),
 
-		AutopayKey:      req("AUTOPAY_KEY"),
-		AutopayUPI:      req("AUTOPAY_UPI"),
-		AutopayBotName:  req("AUTOPAY_BOT_NAME"),
-		AutopayVerifyURL: opt("AUTOPAY_VERIFY_URL"),
-		AutopayQRURL:     opt("AUTOPAY_QR_URL"),
+		AutopayKey:       require("AUTOPAY_KEY"),
+		AutopayUPI:       require("AUTOPAY_UPI"),
+		AutopayBotName:   require("AUTOPAY_BOT_NAME"),
+		AutopayVerifyURL: getOr("AUTOPAY_VERIFY_URL", "https://auto-payment.ximanta.xyz/api/verify"),
+		AutopayQRURL:     getOr("AUTOPAY_QR_URL", "https://qr-api-vercel.vercel.app/qr"),
 
-		PublicBaseURL: opt("PUBLIC_BASE_URL", ""),
+		PublicBaseURL: getOr("PUBLIC_BASE_URL", ""),
 	}
 
 	if len(missing) > 0 {
