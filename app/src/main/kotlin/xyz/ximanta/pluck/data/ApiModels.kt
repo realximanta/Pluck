@@ -1,5 +1,6 @@
 package xyz.ximanta.pluck.data
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -61,7 +62,7 @@ data class MediaFormat(
     val bitrate: Int = 0,
     val hasVideo: Boolean = false,
     val hasAudio: Boolean = false,
-    val klass: String = "",
+    @SerialName("class") val klass: String = "",
     val filename: String = "",
     val directUrl: String = "",
     val contentType: String = "",
