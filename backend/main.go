@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/realximanta/Pluck/backend/internal/api"
 	"github.com/realximanta/Pluck/backend/internal/config"
 	"github.com/realximanta/Pluck/backend/internal/kv"
 )
@@ -48,7 +49,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           mux,
+		Handler:           api.Wrap(mux, cfg),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      120 * time.Second,
