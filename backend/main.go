@@ -12,13 +12,7 @@ import (
 
 	"github.com/realximanta/Pluck/backend/internal/api"
 	"github.com/realximanta/Pluck/backend/internal/config"
-	"github.com/realximanta/Pluck/backend/internal/kv"
 )
-
-type App struct {
-	cfg *config.Config
-	kv  *kv.Client
-}
 
 func main() {
 	cfg, err := config.Load()
@@ -26,15 +20,12 @@ func main() {
 		log.Fatalf("config: %v", err)
 	}
 
-	app := &App{
-		cfg: cfg,
-		kv:  kv.New(cfg.CFAccountID, cfg.CFKVNamespaceID, cfg.CFAPIToken),
-	}
+	app := api.NewApp(cfg)
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("HEAD /health", app.handleHealthHead)
-	mux.HandleFunc("GET /health", app.handleHealthGet)
+	mux.HandleFunc("HEAD /health", handleHealthHead)
+	mux.HandleFunc("GET /health", handleHealthGet)
 
 	mux.HandleFunc("POST /api/qr", app.HandleQR)
 	mux.HandleFunc("POST /api/verify", app.HandleVerify)
@@ -79,11 +70,11 @@ func main() {
 	log.Println("stopped")
 }
 
-func (a *App) handleHealthHead(w http.ResponseWriter, r *http.Request) {
+func handleHealthHead(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (a *App) handleHealthGet(w http.ResponseWriter, r *http.Request) {
+func handleHealthGet(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`{"status":"alive"}`))
