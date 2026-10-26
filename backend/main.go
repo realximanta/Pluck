@@ -9,21 +9,34 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/realximanta/Pluck/backend/internal/config"
+	"github.com/realximanta/Pluck/backend/internal/kv"
 )
 
+type App struct {
+	cfg *config.Config
+	kv  *kv.Client
+}
+
 func main() {
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("config: %v", err)
+	}
+
+	app := &App{
+		cfg: cfg,
+		kv:  kv.New(cfg.CFAccountID, cfg.CFKVNamespaceID, cfg.CFAPIToken),
 	}
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("HEAD /health", handleHealthHead)
-	mux.HandleFunc("GET /health", handleHealthGet)
+	mux.HandleFunc("HEAD /health", app.handleHealthHead)
+	mux.HandleFunc("GET /health", app.handleHealthGet)
 
 	srv := &http.Server{
-		Addr:              ":" + port,
+		Addr:              ":" + cfg.Port,
 		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
@@ -32,7 +45,7 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("pluck-server listening on :%s", port)
+		log.Printf("pluck-server listening on :%s", cfg.Port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("listen: %v", err)
 		}
@@ -51,11 +64,11 @@ func main() {
 	log.Println("stopped")
 }
 
-func handleHealthHead(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleHealthHead(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func handleHealthGet(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleHealthGet(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`{"status":"alive"}`))
