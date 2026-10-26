@@ -2,6 +2,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -10,7 +11,6 @@ import (
 	"strings"
 )
 
-// FileClass categorizes the file kind for the app's UI grouping.
 type FileClass string
 
 const (
@@ -24,7 +24,6 @@ const (
 	ClassOther    FileClass = "other"
 )
 
-// Format is one selectable option — matches the app's picker model.
 type Format struct {
 	FormatID    string    `json:"format_id"`
 	Quality     string    `json:"quality,omitempty"`
@@ -42,7 +41,6 @@ type Format struct {
 	Note        string    `json:"note,omitempty"`
 }
 
-// ResolveResponse is the unified shape for every kind of target.
 type ResolveResponse struct {
 	URL         string   `json:"url"`
 	Platform    string   `json:"platform"`
@@ -61,14 +59,12 @@ type ResolveResponse struct {
 	Other       []Format `json:"other,omitempty"`
 }
 
-// ResolveRequest is the body of POST /api/resolve.
 type ResolveRequest struct {
 	URL string `json:"url"`
 }
 
 var urlSchemeRE = regexp.MustCompile(`^https?://`)
 
-// HandleResolve is POST /api/resolve. Universal — any URL, any file.
 func (a *App) HandleResolve(w http.ResponseWriter, r *http.Request) {
 	if _, err := a.requireAppKey(r); err != nil {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": err.Error()})
@@ -107,52 +103,36 @@ func (a *App) HandleResolve(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// resolveURL routes the URL through the resolver chain.
-func (a *App) resolveURL(ctx interface {
-	Deadline() (deadline interface{ IsZero() bool }, ok bool)
-	Done() <-chan struct{}
-	Err() error
-	Value(key interface{}) interface{}
-}, u *url.URL) (*ResolveResponse, error) {
-	// real ctx — typed shim to allow interface{} pass without import cycle
-	c := asContext(ctx)
+func (a *App) resolveURL(ctx context.Context, u *url.URL) (*ResolveResponse, error) {
 	host := strings.ToLower(u.Hostname())
 
-	// 1. Cloud platforms — host-matched, specific resolvers first
-	if resp, matched, err := a.resolveCloud(c, u, host); matched {
+	if resp, matched, err := a.resolveCloud(ctx, u, host); matched {
 		if err == nil && !emptyResolve(resp) {
 			return resp, nil
 		}
-		// Cloud resolver failed — try yt-dlp as fallback below
 	}
 
-	// 2. Media sites yt-dlp definitely handles
 	if isMediaSiteHost(host) {
-		if resp, err := resolveViaYtdlp(c, u.String()); err == nil && !emptyResolve(resp) {
+		if resp, err := resolveViaYtdlp(ctx, u.String()); err == nil && !emptyResolve(resp) {
 			return resp, nil
 		}
-		// fall through to next methods
 	}
 
-	// 3. Direct file URL (has known extension in path)
 	if looksLikeFileURL(u) {
-		if resp, err := resolveDirect(c, u.String()); err == nil {
+		if resp, err := resolveDirect(ctx, u.String()); err == nil {
 			return resp, nil
 		}
 	}
 
-	// 4. yt-dlp fallback — catches platforms yt-dlp knows even if not in our host list
-	if resp, err := resolveViaYtdlp(c, u.String()); err == nil && !emptyResolve(resp) {
+	if resp, err := resolveViaYtdlp(ctx, u.String()); err == nil && !emptyResolve(resp) {
 		return resp, nil
 	}
 
-	// 5. HTML page scrape for embedded/linked media
-	if resp, err := resolveHTML(c, u.String()); err == nil && !emptyResolve(resp) {
+	if resp, err := resolveHTML(ctx, u.String()); err == nil && !emptyResolve(resp) {
 		return resp, nil
 	}
 
-	// 6. Last resort — direct probe (works for direct file links without known ext)
-	if resp, err := resolveDirect(c, u.String()); err == nil {
+	if resp, err := resolveDirect(ctx, u.String()); err == nil {
 		return resp, nil
 	}
 
@@ -168,7 +148,6 @@ func emptyResolve(r *ResolveResponse) bool {
 	return total == 0
 }
 
-// isMediaSiteHost flags hosts yt-dlp handles natively.
 func isMediaSiteHost(host string) bool {
 	for _, s := range []string{
 		"youtube.com", "youtu.be", "youtube-nocookie.com", "m.youtube.com",
