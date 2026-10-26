@@ -11,7 +11,6 @@ import (
 	"strings"
 )
 
-// resolveDirect sends HEAD, then falls back to a Range GET, and classifies the target.
 func resolveDirect(ctx context.Context, rawURL string) (*ResolveResponse, error) {
 	resp, err := headWithContext(ctx, rawURL)
 	if err != nil || resp.StatusCode >= 400 {
@@ -52,7 +51,6 @@ func resolveDirect(ctx context.Context, rawURL string) (*ResolveResponse, error)
 		class = classFromContentType(ct)
 	}
 
-	// HTML page with no obvious file — let HTML scraper handle it
 	if class == ClassOther && strings.Contains(strings.ToLower(ct), "text/html") {
 		return nil, fmt.Errorf("html page, not a direct file")
 	}
@@ -73,16 +71,16 @@ func resolveDirect(ctx context.Context, rawURL string) (*ResolveResponse, error)
 		Quality:     humanBytes(size),
 	}
 
-	return &ResolveResponse{
+	out := &ResolveResponse{
 		URL:      rawURL,
 		Platform: detectPlatformFromHost(rawURL),
 		Title:    filename,
 		Method:   "direct",
-		appendFormat(&ResolveResponse{}, f),
-	}, nil
+	}
+	appendFormat(out, f)
+	return out, nil
 }
 
-// rangeGet asks for the first byte only — some servers reject HEAD but honour GET.
 func rangeGet(ctx context.Context, rawURL string) (*http.Response, error) {
 	req, err := newRequest(ctx, http.MethodGet, rawURL)
 	if err != nil {
@@ -92,8 +90,6 @@ func rangeGet(ctx context.Context, rawURL string) (*http.Response, error) {
 	return resolveClient.Do(req)
 }
 
-// appendFormat adds a format to the right category of a ResolveResponse.
-// We reuse this via the outer function to keep this file self-contained.
 func appendFormat(r *ResolveResponse, f Format) {
 	switch f.Class {
 	case ClassVideo:
@@ -115,7 +111,6 @@ func appendFormat(r *ResolveResponse, f Format) {
 	}
 }
 
-// looksLikeFileURL — path has a known extension we can classify.
 func looksLikeFileURL(u *url.URL) bool {
 	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(u.Path)), ".")
 	if ext == "" {
@@ -125,35 +120,33 @@ func looksLikeFileURL(u *url.URL) bool {
 	return ok
 }
 
-// extClassMap — extension → class. Used in two places (here + resolve.go).
 var extClassMap = map[string]FileClass{
-	// video
 	"mp4": ClassVideo, "mkv": ClassVideo, "avi": ClassVideo, "mov": ClassVideo,
 	"webm": ClassVideo, "flv": ClassVideo, "wmv": ClassVideo, "m4v": ClassVideo,
 	"3gp": ClassVideo, "mpg": ClassVideo, "mpeg": ClassVideo, "ts": ClassVideo,
 	"m2ts": ClassVideo, "mts": ClassVideo, "ogv": ClassVideo, "rmvb": ClassVideo,
 	"rm": ClassVideo, "divx": ClassVideo, "asf": ClassVideo,
-	// audio
+
 	"mp3": ClassAudio, "m4a": ClassAudio, "wav": ClassAudio, "flac": ClassAudio,
 	"ogg": ClassAudio, "opus": ClassAudio, "aac": ClassAudio, "wma": ClassAudio,
 	"m4b": ClassAudio, "aiff": ClassAudio, "alac": ClassAudio, "ape": ClassAudio,
-	// image
+
 	"jpg": ClassImage, "jpeg": ClassImage, "png": ClassImage, "gif": ClassImage,
 	"webp": ClassImage, "bmp": ClassImage, "svg": ClassImage, "ico": ClassImage,
 	"heic": ClassImage, "avif": ClassImage, "tiff": ClassImage, "tif": ClassImage,
-	// archive
+
 	"zip": ClassArchive, "tar": ClassArchive, "gz": ClassArchive, "tgz": ClassArchive,
 	"bz2": ClassArchive, "xz": ClassArchive, "7z": ClassArchive, "rar": ClassArchive,
 	"zst": ClassArchive, "lz4": ClassArchive, "zipx": ClassArchive, "cab": ClassArchive,
 	"iso": ClassArchive, "dmg": ClassArchive, "jar": ClassArchive, "apk": ClassArchive,
 	"xapk": ClassArchive, "ipa": ClassArchive, "deb": ClassArchive, "rpm": ClassArchive,
-	// document
+
 	"pdf": ClassDocument, "doc": ClassDocument, "docx": ClassDocument,
 	"xls": ClassDocument, "xlsx": ClassDocument, "ppt": ClassDocument,
 	"pptx": ClassDocument, "odt": ClassDocument, "ods": ClassDocument,
 	"odp": ClassDocument, "rtf": ClassDocument, "epub": ClassDocument,
 	"mobi": ClassDocument, "azw3": ClassDocument, "djvu": ClassDocument,
-	// code
+
 	"py": ClassCode, "js": ClassCode, "ts": ClassCode, "go": ClassCode,
 	"rs": ClassCode, "c": ClassCode, "cpp": ClassCode, "h": ClassCode,
 	"hpp": ClassCode, "java": ClassCode, "kt": ClassCode, "swift": ClassCode,
@@ -161,14 +154,13 @@ var extClassMap = map[string]FileClass{
 	"sql": ClassCode, "html": ClassCode, "css": ClassCode, "scss": ClassCode,
 	"jsx": ClassCode, "tsx": ClassCode, "vue": ClassCode, "lua": ClassCode,
 	"pl": ClassCode, "r": ClassCode, "dart": ClassCode, "ex": ClassCode,
-	// text
+
 	"txt": ClassText, "md": ClassText, "json": ClassText, "xml": ClassText,
 	"yaml": ClassText, "yml": ClassText, "toml": ClassText, "ini": ClassText,
 	"csv": ClassText, "tsv": ClassText, "log": ClassText, "conf": ClassText,
 	"cfg": ClassText, "env": ClassText, "srt": ClassText, "vtt": ClassText,
 }
 
-// classFromExt — map extension to class, ClassOther if unknown.
 func classFromExt(ext string) FileClass {
 	ext = strings.TrimPrefix(strings.ToLower(ext), ".")
 	if c, ok := extClassMap[ext]; ok {
@@ -177,7 +169,6 @@ func classFromExt(ext string) FileClass {
 	return ClassOther
 }
 
-// classFromContentType — map mime type to class.
 func classFromContentType(ct string) FileClass {
 	ct = strings.ToLower(strings.Split(ct, ";")[0])
 	ct = strings.TrimSpace(ct)
@@ -205,7 +196,6 @@ func classFromContentType(ct string) FileClass {
 	return ClassOther
 }
 
-// extFromContentType — map mime to a plausible file extension.
 func extFromContentType(ct string) string {
 	ct = strings.ToLower(strings.Split(ct, ";")[0])
 	switch ct {
@@ -239,7 +229,6 @@ func extFromContentType(ct string) string {
 	return ""
 }
 
-// filenameFromDisposition — parse RFC 6266 Content-Disposition.
 func filenameFromDisposition(cd string) string {
 	if cd == "" {
 		return ""
@@ -268,7 +257,6 @@ func filenameFromDisposition(cd string) string {
 	return ""
 }
 
-// filenameFromURLPath — last path segment.
 func filenameFromURLPath(rawURL string) string {
 	u, err := url.Parse(rawURL)
 	if err != nil {
@@ -281,7 +269,6 @@ func filenameFromURLPath(rawURL string) string {
 	return base
 }
 
-// humanBytes — "45.2 MB", "1.4 GB", etc.
 func humanBytes(n int64) string {
 	if n <= 0 {
 		return ""
@@ -298,7 +285,6 @@ func humanBytes(n int64) string {
 	return fmt.Sprintf("%.1f %cB", float64(n)/float64(div), "KMGTPE"[exp])
 }
 
-// detectPlatformFromHost — returns a platform tag from the URL's host.
 func detectPlatformFromHost(rawURL string) string {
 	u, err := url.Parse(rawURL)
 	if err != nil {
