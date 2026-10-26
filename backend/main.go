@@ -34,6 +34,8 @@ func main() {
 
 	mux.HandleFunc("HEAD /health", app.handleHealthHead)
 	mux.HandleFunc("GET /health", app.handleHealthGet)
+	mux.HandleFunc("POST /api/qr", app.HandleQR)
+	mux.HandleFunc("POST /api/verify", app.HandleVerify)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
