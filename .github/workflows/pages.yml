@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
     paths:
+      - 'index.html'
       - 'docs/**'
   workflow_dispatch:
 
@@ -26,13 +27,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Prepare site
+        run: |
+          set -euo pipefail
+          mkdir -p _site
+          if [ -f index.html ]; then
+            cp index.html _site/index.html
+          fi
+          if [ -d docs ] && [ -f docs/index.html ] && [ ! -f index.html ]; then
+            cp -r docs/* _site/
+          fi
+          echo "site contents:"
+          ls -la _site
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs
+          path: _site
 
       - name: Deploy to GitHub Pages
         id: deployment
