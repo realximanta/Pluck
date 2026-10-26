@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pluck · Admin</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>body{font-family:'Inter',system-ui,sans-serif}</style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+<div id="gate" class="flex items-center justify-center min-h-screen px-4">
+  <div class="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl">
+    <h1 class="text-xl font-semibold mb-1">Pluck Admin</h1>
+    <p class="text-slate-400 text-sm mb-5">Enter the admin key to continue.</p>
+    <input id="gateKey" type="password" placeholder="Admin key"
+           class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500">
+    <button onclick="login()" class="mt-3 w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold rounded-lg py-2 text-sm">Unlock</button>
+    <p id="gateErr" class="text-red-400 text-xs mt-2 hidden">Wrong key.</p>
+  </div>
+</div>
+
+<div id="panel" class="hidden max-w-5xl mx-auto px-4 py-8">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-semibold">Pluck · Admin</h1>
+    <button onclick="logout()" class="text-sm text-slate-400 hover:text-slate-200">Sign out</button>
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-4 mb-8">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+      <h2 class="text-lg font-semibold mb-3">Issue a key</h2>
+      <input id="cName" placeholder="User name" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm mb-2">
+      <select id="cPlan" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm mb-2"></select>
+      <input id="cDays" type="number" min="1" placeholder="Days (leave empty for plan default)"
+             class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm mb-3">
+      <button onclick="createKey()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold rounded-lg py-2 text-sm">Create</button>
+      <div id="cOut" class="mt-3 text-sm text-emerald-400 break-all"></div>
+    </div>
+
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+      <h2 class="text-lg font-semibold mb-3">Quick lookup</h2>
+      <input id="lKey" placeholder="Key to revoke" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm mb-2">
+      <button onclick="revokeKey()" class="w-full bg-red-500 hover:bg-red-400 text-white font-semibold rounded-lg py-2 text-sm">Revoke</button>
+      <div id="rOut" class="mt-3 text-sm text-red-400 break-all"></div>
+    </div>
+  </div>
+
+  <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+    <div class="px-5 py-3 border-b border-slate-800 flex items-center justify-between">
+      <h2 class="text-lg font-semibold">Keys</h2>
+      <button onclick="loadKeys()" class="text-xs text-slate-400 hover:text-slate-200">Refresh</button>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-950 text-slate-400 text-left">
+          <tr><th class="px-4 py-2">Key</th><th class="px-4 py-2">Name</th><th class="px-4 py-2">Plan</th><th class="px-4 py-2">Expires</th><th class="px-4 py-2">Status</th><th class="px-4 py-2">Source</th></tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const PLANS = [{"id":"trial","name":"Go"},{"id":"week","name":"Basic"},{"id":"month","name":"Plus"},{"id":"quarter","name":"Pro"}];
+let ADMIN_KEY = sessionStorage.getItem('pluck_admin_key') || '';
+
+function headers(extra){ const h = Object.assign({}, extra||{}); if (ADMIN_KEY) h['X-Admin-Key']=ADMIN_KEY; return h; }
+async function api(path, opts){
+  opts = opts || {}; opts.headers = headers(opts.headers);
+  const r = await fetch(path, opts);
+  if (r.status === 401) { logout(); throw new Error('unauthorized'); }
+  return r.json();
+}
+
+async function login(){
+  const k = document.getElementById('gateKey').value.trim();
+  if (!k) return;
+  ADMIN_KEY = k;
+  try {
+    await api('/admin/keys.json');
+    sessionStorage.setItem('pluck_admin_key', k);
+    showPanel();
+  } catch (e) {
+    ADMIN_KEY='';
+    document.getElementById('gateErr').classList.remove('hidden');
+  }
+}
+function logout(){
+  ADMIN_KEY=''; sessionStorage.removeItem('pluck_admin_key');
+  document.getElementById('gate').classList.remove('hidden');
+  document.getElementById('panel').classList.add('hidden');
+}
+function showPanel(){
+  document.getElementById('gate').classList.add('hidden');
+  document.getElementById('panel').classList.remove('hidden');
+  const sel = document.getElementById('cPlan');
+  if (!sel.options.length) sel.innerHTML = PLANS.map(p=>'<option value="'+p.id+'">'+p.name+'</option>').join('');
+  loadKeys();
+}
+function fmt(ts){ if(!ts) return '—'; return new Date(ts*1000).toLocaleDateString(); }
+
+async function loadKeys(){
+  const rows = await api('/admin/keys.json');
+  document.getElementById('rows').innerHTML = rows.map(k=>(
+    '<tr class="border-t border-slate-800">'+
+    '<td class="px-4 py-2 font-mono">'+k.key+'</td>'+
+    '<td class="px-4 py-2">'+k.name+'</td>'+
+    '<td class="px-4 py-2">'+k.plan_name+'</td>'+
+    '<td class="px-4 py-2">'+fmt(k.expires_at)+'</td>'+
+    '<td class="px-4 py-2 '+(k.status==='active'?'text-emerald-400':'text-red-400')+'">'+k.status+'</td>'+
+    '<td class="px-4 py-2 text-slate-400">'+k.source+'</td>'+
+    '</tr>'
+  )).join('') || '<tr><td colspan="6" class="px-4 py-6 text-center text-slate-500">No keys yet.</td></tr>';
+}
+
+async function createKey(){
+  const name = document.getElementById('cName').value.trim();
+  const plan_id = document.getElementById('cPlan').value;
+  const days = parseInt(document.getElementById('cDays').value||'0',10);
+  if (!name) return;
+  try {
+    const k = await api('/admin/keys', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, plan_id, duration_days: days})});
+    document.getElementById('cOut').textContent = 'Created: '+k.key+' · '+k.plan_name+' · expires '+fmt(k.expires_at);
+    document.getElementById('cName').value=''; document.getElementById('cDays').value='';
+    loadKeys();
+  } catch(e) { document.getElementById('cOut').textContent = 'Error: '+e.message; }
+}
+
+async function revokeKey(){
+  const key = document.getElementById('lKey').value.trim().toUpperCase();
+  if (!key) return;
+  try {
+    const k = await api('/admin/revoke', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({key})});
+    document.getElementById('rOut').textContent = 'Revoked: '+k.key;
+    document.getElementById('lKey').value='';
+    loadKeys();
+  } catch(e) { document.getElementById('rOut').textContent = 'Error: '+e.message; }
+}
+
+if (ADMIN_KEY) { api('/admin/keys.json').then(showPanel).catch(()=>logout()); }
+</script>
+</body>
+</html>
