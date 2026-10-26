@@ -10,8 +10,6 @@ import (
 	"time"
 )
 
-// resolveClient is shared across all resolve paths. Browser UA + cookie jar
-// so cloud platforms don't block the request as a bot.
 var resolveClient *http.Client
 
 func init() {
@@ -47,7 +45,6 @@ func newRequest(ctx context.Context, method, url string) (*http.Request, error) 
 	return req, nil
 }
 
-// getWithContext does a GET and returns resp — caller must close body.
 func getWithContext(ctx context.Context, url string) (*http.Response, error) {
 	req, err := newRequest(ctx, http.MethodGet, url)
 	if err != nil {
@@ -56,7 +53,6 @@ func getWithContext(ctx context.Context, url string) (*http.Response, error) {
 	return resolveClient.Do(req)
 }
 
-// headWithContext does a HEAD request.
 func headWithContext(ctx context.Context, url string) (*http.Response, error) {
 	req, err := newRequest(ctx, http.MethodHead, url)
 	if err != nil {
@@ -65,21 +61,6 @@ func headWithContext(ctx context.Context, url string) (*http.Response, error) {
 	return resolveClient.Do(req)
 }
 
-// readAllLimited reads at most n bytes — protects against giant HTML pages.
 func readAllLimited(r io.Reader, n int64) ([]byte, error) {
 	return io.ReadAll(io.LimitReader(r, n))
-}
-
-// asContext converts the interface{} shim back to context.Context.
-// (Needed because resolveURL declares a local type to avoid duplicate import.)
-func asContext(v interface {
-	Deadline() (deadline interface{ IsZero() bool }, ok bool)
-	Done() <-chan struct{}
-	Err() error
-	Value(key interface{}) interface{}
-}) context.Context {
-	if c, ok := v.(context.Context); ok {
-		return c
-	}
-	return context.Background()
 }
