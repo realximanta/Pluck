@@ -37,6 +37,11 @@ func main() {
 	mux.HandleFunc("POST /api/qr", app.HandleQR)
 	mux.HandleFunc("POST /api/verify", app.HandleVerify)
 
+	mux.HandleFunc("GET /admin", app.HandleAdminPage)
+	mux.HandleFunc("GET /admin/keys.json", app.HandleAdminList)
+	mux.HandleFunc("POST /admin/keys", app.HandleAdminCreate)
+	mux.HandleFunc("POST /admin/revoke", app.HandleAdminRevoke)
+
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
 		Handler:           mux,
