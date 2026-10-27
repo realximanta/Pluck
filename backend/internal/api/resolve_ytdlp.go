@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const ytdlpResolveTimeout = 25 * time.Second
+const ytdlpResolveTimeout = 20 * time.Second
 
 type ytdlpDump struct {
 	Title        string        `json:"title"`
@@ -42,7 +42,6 @@ type ytdlpFormat struct {
 	ABR            float64 `json:"abr"`
 }
 
-// resolveViaYtdlp runs yt-dlp and maps the format list into ResolveResponse.
 func resolveViaYtdlp(parent context.Context, mediaURL string) (*ResolveResponse, error) {
 	ctx, cancel := context.WithTimeout(parent, ytdlpResolveTimeout)
 	defer cancel()
@@ -53,8 +52,8 @@ func resolveViaYtdlp(parent context.Context, mediaURL string) (*ResolveResponse,
 		"--no-playlist",
 		"--no-check-certificates",
 		"--socket-timeout", "10",
-		"--",
-		mediaURL,
+		"--extractor-args", "youtube:player_client=android",
+		"--", mediaURL,
 	)
 	out, err := cmd.Output()
 	if err != nil {
