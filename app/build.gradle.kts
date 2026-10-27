@@ -18,8 +18,8 @@ android {
 
         vectorDrawables { useSupportLibrary = true }
 
-        val apiBaseUrl = (project.findProperty("PLUCK_API_BASE_URL") as? String)
-            ?: "https://pluck-server.onrender.com"
+        val rawApiBaseUrl = (project.findProperty("PLUCK_API_BASE_URL") as? String)?.trim()
+        val apiBaseUrl = if (rawApiBaseUrl.isNullOrEmpty()) "https://pluck.ximanta.xyz" else rawApiBaseUrl
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
     }
 
@@ -87,14 +87,12 @@ dependencies {
     implementation(composeBom)
     androidTestImplementation(composeBom)
 
-    // Core
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
 
-    // Compose UI
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
@@ -102,19 +100,15 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.navigation:navigation-compose:2.8.5")
 
-    // Networking + JSON
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 
-    // Persistence
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 
-    // Debug tooling
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 
-    // Tests
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
