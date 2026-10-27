@@ -19,12 +19,8 @@ import xyz.ximanta.pluck.data.HistoryEntry
 import xyz.ximanta.pluck.ui.PluckColors
 import xyz.ximanta.pluck.ui.screens.HistoryScreen
 import xyz.ximanta.pluck.ui.screens.HomeScreen
-import xyz.ximanta.pluck.ui.viewmodel.HomeFetchState
 import xyz.ximanta.pluck.ui.viewmodel.HomeHistoryState
-import xyz.ximanta.pluck.ui.viewmodel.HomeResolveState
 import xyz.ximanta.pluck.ui.viewmodel.HomeViewModel
-import xyz.ximanta.pluck.ui.viewmodel.SelectedFormat
-import xyz.ximanta.pluck.data.MediaFormat
 
 @Composable
 fun AppShell(
@@ -64,9 +60,7 @@ fun AppShell(
         drawerContent = {
             ModalDrawerSheet(
                 drawerContainerColor = PluckColors.Slate950,
-                drawerShape = androidx.compose.foundation.shape.RoundedCornerShape(
-                    topEnd = 20.dp, bottomEnd = 20.dp
-                ),
+                drawerShape = androidx.compose.foundation.shape.RoundedCornerShape(topEnd = 20.dp, bottomEnd = 20.dp),
                 modifier = Modifier.width(310.dp)
             ) {
                 HistoryScreen(
@@ -93,9 +87,7 @@ fun AppShell(
             fetchState = fetchState,
             onUrlChange = viewModel::onUrlChange,
             onResolve = viewModel::resolve,
-            onSelectFormat = { format: MediaFormat, mediaType: String ->
-                viewModel.selectFormat(format, mediaType)
-            },
+            onSelectFormat = { format, mediaType -> viewModel.selectFormat(format, mediaType) },
             onClearSelection = viewModel::clearSelection,
             onDownload = viewModel::download,
             onDismissFetch = viewModel::dismissFetch,
