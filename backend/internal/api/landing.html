@@ -3,341 +3,579 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Pluck · Pull any media from anywhere</title>
-<meta name="description" content="Download any media — video, audio, image, file — from any website, in any quality.">
+<title>Pluck — Pull any media from anywhere</title>
+<meta name="description" content="Pluck — open source Android app. Download any media from any website, in any quality, any file type.">
+<meta property="og:title" content="Pluck — Pull any media from anywhere">
+<meta property="og:description" content="Open source Android media downloader. Any platform, any quality, any file type.">
+<meta name="theme-color" content="#020617">
 <script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ['Inter','system-ui','sans-serif'],
+        serif: ['Instrument Serif','Georgia','serif'],
+        mono: ['JetBrains Mono','ui-monospace','monospace']
+      },
+      colors: {
+        brand: { 400:'#34d399', 500:'#10b981', 600:'#059669' }
+      }
+    }
+  }
+};
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/aos@2.3.4/dist/aos.css">
+<script src="https://unpkg.com/lucide@0.400.0/dist/umd/lucide.js"></script>
 <style>
+  html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
   body { font-family: 'Inter', system-ui, sans-serif; }
-  .grain { background-image: radial-gradient(circle at 20% 0%, rgba(16,185,129,0.08), transparent 50%), radial-gradient(circle at 80% 100%, rgba(59,130,246,0.06), transparent 50%); }
+  .font-display { font-family: 'Instrument Serif', Georgia, serif; letter-spacing: -0.02em; }
+  .hero-bg { background: radial-gradient(ellipse 60% 50% at 20% 20%, rgba(16,185,129,0.14), transparent 60%), radial-gradient(ellipse 50% 60% at 80% 80%, rgba(59,130,246,0.09), transparent 60%), radial-gradient(ellipse 80% 40% at 50% 0%, rgba(16,185,129,0.06), transparent 70%); }
+  .grid-pattern { background-image: linear-gradient(rgba(148,163,184,0.045) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.045) 1px, transparent 1px); background-size: 48px 48px; -webkit-mask-image: radial-gradient(ellipse at center, black 25%, transparent 75%); mask-image: radial-gradient(ellipse at center, black 25%, transparent 75%); }
+  
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: translateY(0); } }
+  .anim-fade-up { animation: fadeUp .75s cubic-bezier(0.22,1,0.36,1) forwards; opacity: 0; }
+  .anim-delay-1 { animation-delay: .05s; }
+  .anim-delay-2 { animation-delay: .2s; }
+  .anim-delay-3 { animation-delay: .35s; }
+  .anim-delay-4 { animation-delay: .5s; }
+  .anim-delay-5 { animation-delay: .65s; }
+
+  .feature-card { transition: transform .35s cubic-bezier(0.22,1,0.36,1), border-color .35s ease, box-shadow .35s ease, background-color .35s ease; }
+  .feature-card:hover { transform: translateY(-4px); border-color: rgba(16,185,129,0.35); background-color: rgba(15,23,42,0.65); box-shadow: 0 24px 48px -24px rgba(16,185,129,0.28); }
+  .cta-primary { position: relative; overflow: hidden; }
+  .cta-primary::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, transparent, rgba(255,255,255,0.28), transparent); transform: translateX(-120%); transition: transform .65s ease; }
+  .cta-primary:hover::before { transform: translateX(120%); }
+  .version-pill { display: inline-flex; align-items: center; gap: .55rem; padding: .4rem .95rem; border-radius: 999px; background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.22); font-size: .75rem; font-weight: 500; color: #34d399; }
+  .version-dot { width: 6px; height: 6px; border-radius: 999px; background: #34d399; box-shadow: 0 0 0 0 rgba(52,211,153,.7); animation: pulseDot 2.2s infinite; }
+  @keyframes pulseDot { 0% { box-shadow: 0 0 0 0 rgba(52,211,153,.7); } 70% { box-shadow: 0 0 0 9px rgba(52,211,153,0); } 100% { box-shadow: 0 0 0 0 rgba(52,211,153,0); } }
+  .stat-number { font-family: 'Instrument Serif', serif; font-size: clamp(2.5rem, 5vw, 4rem); line-height: 1; letter-spacing: -0.03em; }
+  .divider-gradient { height: 1px; background: linear-gradient(90deg, transparent, rgba(148,163,184,0.22), transparent); }
+  #app { min-height: 100vh; }
+  .guard-screen { position: fixed; inset: 0; background: #020617; z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 2rem; text-align: center; }
+  .guard-inner { max-width: 26rem; padding: 2.25rem; border: 1px solid rgba(239,68,68,0.35); background: rgba(239,68,68,0.06); border-radius: 1rem; }
+  .guard-title { font-family: 'Instrument Serif', serif; font-size: 1.6rem; color: #f87171; margin-bottom: .5rem; }
+  .guard-text { font-size: .875rem; color: #94a3b8; line-height: 1.55; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen grain">
+<body class="bg-slate-950 text-slate-100 antialiased overflow-x-hidden">
+<div id="app">
 
-<!-- Header -->
-<header class="max-w-6xl mx-auto px-6 py-6 flex items-center justify-between">
-  <div class="flex items-center gap-2">
-    <div class="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center">
-      <span class="text-slate-950 font-bold text-lg">P</span>
-    </div>
-    <span class="font-semibold text-lg">Pluck</span>
-  </div>
-  <nav class="flex items-center gap-6 text-sm">
-    <a href="#features" class="text-slate-400 hover:text-slate-100">Features</a>
-    <a href="#plans" class="text-slate-400 hover:text-slate-100">Plans</a>
-    <a href="https://github.com/realximanta/Pluck" target="_blank" rel="noopener" class="text-slate-400 hover:text-slate-100">GitHub</a>
-  </nav>
-</header>
+  <header class="relative z-20">
+    <nav class="max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">
+      <a href="/" class="flex items-center gap-2.5 group">
+        <div class="w-9 h-9 rounded-lg bg-brand-500 flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:shadow-emerald-500/40 transition-shadow">
+          <span class="text-slate-950 font-extrabold text-lg leading-none">P</span>
+        </div>
+        <span class="font-semibold text-lg tracking-tight">Pluck</span>
+      </a>
+      <div class="hidden md:flex items-center gap-7 text-sm text-slate-400">
+        <a href="#features" class="hover:text-slate-100 transition-colors">Features</a>
+        <a href="#how" class="hover:text-slate-100 transition-colors">How it works</a>
+        <a href="#plans" class="hover:text-slate-100 transition-colors">Plans</a>
+        <a href="https://github.com/realximanta/Pluck" target="_blank" rel="noopener" class="hover:text-slate-100 transition-colors">Source</a>
+      </div>
+    </nav>
+  </header>
 
-<!-- Hero -->
-<section class="max-w-4xl mx-auto px-6 pt-16 pb-24 text-center">
-  <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium mb-6">
-    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-    Open source · Android
-  </div>
-  <h1 class="text-5xl md:text-6xl font-extrabold tracking-tight leading-tight mb-6">
-    Pull any media<br><span class="text-emerald-400">from anywhere.</span>
-  </h1>
-  <p class="text-lg text-slate-400 max-w-2xl mx-auto mb-10">
-    YouTube, Instagram, TikTok, Facebook, Pinterest, cloud drives, direct files — video, audio, image, PDF, zip, anything. Pick your quality, pick your format, download.
-  </p>
-  <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
-    <a href="https://github.com/realximanta/Pluck/releases/latest" target="_blank" rel="noopener"
-       class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold transition">
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-      Download APK
-    </a>
-    <a href="#plans" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-slate-700 hover:border-slate-500 text-slate-200 font-medium transition">
-      Get a key
-    </a>
-  </div>
-</section>
+  <section class="relative overflow-hidden">
+    <div class="absolute inset-0 hero-bg pointer-events-none"></div>
+    <div class="absolute inset-0 grid-pattern pointer-events-none"></div>
+    <div class="relative max-w-5xl mx-auto px-6 pt-14 pb-24 md:pt-24 md:pb-32 text-center">
+      <div class="anim-fade-up anim-delay-1 inline-flex">
+        <span class="version-pill">
+          <span class="version-dot"></span>
+          <span id="versionPill">Open source · Android</span>
+        </span>
+      </div>
+      <h1 class="anim-fade-up anim-delay-2 font-display text-5xl md:text-7xl lg:text-8xl leading-[1.02] tracking-tight mt-8 mb-6">
+        Pull any media<br><span class="italic text-brand-400">from anywhere.</span>
+      </h1>
+      <p class="anim-fade-up anim-delay-3 text-lg md:text-xl text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed">
+        YouTube, Instagram, TikTok, Facebook, Pinterest, cloud drives, direct files. Video, audio, image, PDF, zip — any file, any quality, any time.
+      </p>
+      <div class="anim-fade-up anim-delay-4 flex flex-col sm:flex-row items-center justify-center gap-3 mb-8">
+        <a id="apkBtn" href="https://github.com/realximanta/Pluck/releases/latest" class="cta-primary inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-semibold transition shadow-lg shadow-emerald-500/20">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span id="apkBtnText">Download APK</span>
+        </a>
+        <a href="#plans" class="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl border border-slate-700 hover:border-slate-500 hover:bg-slate-900/50 text-slate-200 font-medium transition">
+          Get a key
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </a>
+      </div>
+      <div id="latestInfo" class="anim-fade-up anim-delay-5 text-xs font-mono text-slate-500"></div>
+    </div>
+  </section>
 
-<!-- Features -->
-<section id="features" class="max-w-6xl mx-auto px-6 py-16 border-t border-slate-900">
-  <h2 class="text-3xl font-bold mb-12 text-center">Everything, in one app.</h2>
-  <div class="grid md:grid-cols-3 gap-6">
-    <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
-      <div class="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-4 font-bold">1</div>
-      <h3 class="font-semibold mb-2">Any platform</h3>
-      <p class="text-sm text-slate-400">Media sites, cloud drives, direct links, HTML pages with embedded media — the backend figures out the right path for each URL.</p>
+  <section class="relative border-y border-slate-900/80 bg-slate-950/50">
+    <div class="max-w-6xl mx-auto px-6 py-12">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-8">
+        <div data-aos="fade-up" data-aos-delay="0" class="text-center"><div class="stat-number text-brand-400" data-count="50" data-suffix="+">0</div><div class="text-xs uppercase tracking-widest text-slate-500 mt-2">Platforms</div></div>
+        <div data-aos="fade-up" data-aos-delay="100" class="text-center"><div class="stat-number text-brand-400" data-count="8000" data-suffix="+">0</div><div class="text-xs uppercase tracking-widest text-slate-500 mt-2">Formats</div></div>
+        <div data-aos="fade-up" data-aos-delay="200" class="text-center"><div class="stat-number text-brand-400" data-count="100" data-suffix="%">0</div><div class="text-xs uppercase tracking-widest text-slate-500 mt-2">Open source</div></div>
+        <div data-aos="fade-up" data-aos-delay="300" class="text-center"><div class="stat-number text-brand-400">MIT</div><div class="text-xs uppercase tracking-widest text-slate-500 mt-2">License</div></div>
+      </div>
     </div>
-    <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
-      <div class="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-4 font-bold">2</div>
-      <h3 class="font-semibold mb-2">Any quality</h3>
-      <p class="text-sm text-slate-400">From 144p to 4K, or audio-only at your chosen bitrate. The app shows every available format before you download.</p>
-    </div>
-    <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
-      <div class="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-4 font-bold">3</div>
-      <h3 class="font-semibold mb-2">Any file type</h3>
-      <p class="text-sm text-slate-400">Video, audio, image, PDF, code, zip, tar, apk — every file class is recognized and organized in your device's storage.</p>
-    </div>
-  </div>
-</section>
+  </section>
 
-<!-- Plans -->
-<section id="plans" class="max-w-6xl mx-auto px-6 py-20 border-t border-slate-900">
-  <div class="text-center mb-12">
-    <h2 class="text-3xl font-bold mb-3">Simple pricing.</h2>
-    <p class="text-slate-400">One key, one purchase. No auto-renew, no subscription.</p>
-  </div>
-  <div id="planGrid" class="grid md:grid-cols-4 gap-4">
-    <div class="col-span-full text-center text-slate-500 py-8">Loading plans…</div>
-  </div>
-</section>
-
-<!-- Footer -->
-<footer class="border-t border-slate-900 mt-20">
-  <div class="max-w-6xl mx-auto px-6 py-8 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-slate-500">
-    <div>Pluck · Better Call Tuku</div>
-    <div class="flex gap-6">
-      <a href="https://github.com/realximanta/Pluck" target="_blank" rel="noopener" class="hover:text-slate-300">Source</a>
-      <a href="/admin" class="hover:text-slate-300">Admin</a>
+  <section id="features" class="relative max-w-6xl mx-auto px-6 py-24">
+    <div class="text-center mb-16" data-aos="fade-up">
+      <div class="text-xs uppercase tracking-widest text-brand-400 font-semibold mb-3">Built for everything</div>
+      <h2 class="font-display text-4xl md:text-5xl tracking-tight">No platform left behind.</h2>
     </div>
-  </div>
-</footer>
+    <div class="grid md:grid-cols-3 gap-5">
+      <div class="feature-card bg-slate-900/40 border border-slate-800 rounded-2xl p-7" data-aos="fade-up" data-aos-delay="0">
+        <div class="w-11 h-11 rounded-xl bg-brand-500/10 text-brand-400 flex items-center justify-center mb-5"><i data-lucide="globe-2" class="w-5 h-5"></i></div>
+        <h3 class="font-semibold text-lg mb-2">Universal resolver</h3>
+        <p class="text-sm text-slate-400 leading-relaxed">Media sites, cloud drives, direct links, HTML pages with embedded media. The backend picks the right path for each URL.</p>
+      </div>
+      <div class="feature-card bg-slate-900/40 border border-slate-800 rounded-2xl p-7" data-aos="fade-up" data-aos-delay="100">
+        <div class="w-11 h-11 rounded-xl bg-brand-500/10 text-brand-400 flex items-center justify-center mb-5"><i data-lucide="sliders-horizontal" class="w-5 h-5"></i></div>
+        <h3 class="font-semibold text-lg mb-2">Any quality</h3>
+        <p class="text-sm text-slate-400 leading-relaxed">144p to 4K, or audio-only at your chosen bitrate. Preview every available format before you commit.</p>
+      </div>
+      <div class="feature-card bg-slate-900/40 border border-slate-800 rounded-2xl p-7" data-aos="fade-up" data-aos-delay="200">
+        <div class="w-11 h-11 rounded-xl bg-brand-500/10 text-brand-400 flex items-center justify-center mb-5"><i data-lucide="file-archive" class="w-5 h-5"></i></div>
+        <h3 class="font-semibold text-lg mb-2">Every file type</h3>
+        <p class="text-sm text-slate-400 leading-relaxed">Video, audio, image, PDF, code, zip, tar, apk. Every file class is recognized and organized in device storage.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="how" class="relative max-w-6xl mx-auto px-6 py-24 border-t border-slate-900/80">
+    <div class="text-center mb-16" data-aos="fade-up">
+      <div class="text-xs uppercase tracking-widest text-brand-400 font-semibold mb-3">Three steps</div>
+      <h2 class="font-display text-4xl md:text-5xl tracking-tight">From URL to file.</h2>
+    </div>
+    <div class="grid md:grid-cols-3 gap-8">
+      <div data-aos="fade-up" data-aos-delay="0"><div class="font-display text-6xl text-slate-800 mb-4">01</div><h3 class="font-semibold text-lg mb-2">Paste the URL</h3><p class="text-sm text-slate-400 leading-relaxed">Any link works — a YouTube video, an Instagram reel, a Google Drive folder, or a direct file path.</p></div>
+      <div data-aos="fade-up" data-aos-delay="100"><div class="font-display text-6xl text-slate-800 mb-4">02</div><h3 class="font-semibold text-lg mb-2">Pick your format</h3><p class="text-sm text-slate-400 leading-relaxed">The app shows every available quality and file type. Choose video, audio, image, or the full file.</p></div>
+      <div data-aos="fade-up" data-aos-delay="200"><div class="font-display text-6xl text-slate-800 mb-4">03</div><h3 class="font-semibold text-lg mb-2">Download</h3><p class="text-sm text-slate-400 leading-relaxed">Files land in the right folder on your device — Videos, Music, or Downloads. Every fetch is saved to history.</p></div>
+    </div>
+  </section>
+
+  <section id="plans" class="relative max-w-6xl mx-auto px-6 py-24 border-t border-slate-900/80">
+    <div class="text-center mb-16" data-aos="fade-up">
+      <div class="text-xs uppercase tracking-widest text-brand-400 font-semibold mb-3">Pricing</div>
+      <h2 class="font-display text-4xl md:text-5xl tracking-tight">Simple. No auto-renew.</h2>
+    </div>
+    <div id="planGrid" class="grid md:grid-cols-4 gap-4">
+      <div class="col-span-full text-center text-slate-500 py-8">Loading plans…</div>
+    </div>
+  </section>
+
+  <section class="relative border-t border-slate-900/80 overflow-hidden">
+    <div class="absolute inset-0 hero-bg pointer-events-none opacity-50"></div>
+    <div class="relative max-w-4xl mx-auto px-6 py-24 text-center" data-aos="fade-up">
+      <h2 class="font-display text-4xl md:text-5xl tracking-tight mb-4">Start pulling.</h2>
+      <p class="text-slate-400 max-w-xl mx-auto mb-8">Download the signed APK directly from GitHub Releases, or grab a key from the product site.</p>
+      <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
+        <a id="apkBtnBottom" href="https://github.com/realximanta/Pluck/releases/latest" class="cta-primary inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-semibold transition shadow-lg shadow-emerald-500/20">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span id="apkBtnTextBottom">Download APK</span>
+        </a>
+        <a href="#plans" class="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl border border-slate-700 hover:border-slate-500 hover:bg-slate-900/50 text-slate-200 font-medium transition">Get a key</a>
+      </div>
+    </div>
+  </section>
+
+  <footer class="border-t border-slate-900/80 bg-slate-950">
+    <div class="max-w-6xl mx-auto px-6 py-12">
+      <div class="grid md:grid-cols-4 gap-8 mb-10">
+        <div class="md:col-span-2">
+          <div class="flex items-center gap-2.5 mb-3"><div class="w-8 h-8 rounded-lg bg-brand-500 flex items-center justify-center"><span class="text-slate-950 font-extrabold text-base leading-none">P</span></div><span class="font-semibold">Pluck</span></div>
+          <p class="text-sm text-slate-500 max-w-sm leading-relaxed">Open source Android media downloader. Any platform, any quality, any file type. Built by Ximanta.</p>
+        </div>
+        <div>
+          <div class="text-xs uppercase tracking-widest text-slate-500 font-semibold mb-3">Project</div>
+          <ul class="space-y-2 text-sm">
+            <li><a href="https://github.com/realximanta/Pluck" target="_blank" rel="noopener" class="text-slate-400 hover:text-slate-100 transition-colors">Source code</a></li>
+            <li><a href="https://github.com/realximanta/Pluck/releases" target="_blank" rel="noopener" class="text-slate-400 hover:text-slate-100 transition-colors">Releases</a></li>
+            <li><a href="https://github.com/realximanta/Pluck/issues" target="_blank" rel="noopener" class="text-slate-400 hover:text-slate-100 transition-colors">Issues</a></li>
+          </ul>
+        </div>
+        <div>
+          <div class="text-xs uppercase tracking-widest text-slate-500 font-semibold mb-3">Product</div>
+          <ul class="space-y-2 text-sm">
+            <li><a href="#plans" class="text-slate-400 hover:text-slate-100 transition-colors">Buy a key</a></li>
+            <li><a href="/admin" class="text-slate-400 hover:text-slate-100 transition-colors">Admin</a></li>
+            <li><a href="/health" class="text-slate-400 hover:text-slate-100 transition-colors">Status</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="divider-gradient mb-6"></div>
+      <div class="flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+        <div>Pluck · Better Call Tuku</div>
+        <div class="font-mono">MIT License · <span id="year"></span></div>
+      </div>
+    </div>
+  </footer>
+</div>
 
 <!-- Purchase modal -->
 <div id="modal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-  <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+  <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto relative">
     <div class="p-6 border-b border-slate-800 flex items-center justify-between">
-      <div>
-        <h3 id="modalPlan" class="text-lg font-semibold">—</h3>
-        <p id="modalPrice" class="text-sm text-slate-400">—</p>
-      </div>
+      <div><h3 id="modalPlan" class="text-lg font-semibold">—</h3><p id="modalPrice" class="text-sm text-slate-400">—</p></div>
       <button onclick="closeModal()" class="text-slate-500 hover:text-slate-200 text-2xl leading-none">&times;</button>
     </div>
 
     <!-- Step 1: name -->
     <div id="stepName" class="p-6">
       <label class="block text-sm text-slate-400 mb-2">Your name</label>
-      <input id="purchaseName" type="text" maxlength="40" placeholder="Shown on your key"
-             class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm mb-4 focus:outline-none focus:border-emerald-500">
-      <button onclick="generateQR()" id="genBtn"
-              class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold rounded-lg py-2 text-sm disabled:opacity-50">
-        Generate QR
-      </button>
+      <input id="purchaseName" type="text" maxlength="40" placeholder="Shown on your key" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm mb-4 focus:outline-none focus:border-emerald-500 text-slate-100">
+      <button onclick="generateQR()" id="genBtn" class="w-full bg-brand-500 hover:bg-brand-400 text-slate-950 font-semibold rounded-lg py-2 text-sm disabled:opacity-50 transition">Generate QR</button>
       <p id="stepErr1" class="text-red-400 text-xs mt-3 hidden"></p>
     </div>
 
     <!-- Step 2: pay -->
-    <div id="stepPay" class="hidden p-6">
-      <p class="text-sm text-slate-400 mb-4">Scan with any UPI app and pay the exact amount shown.</p>
-      <div class="bg-white rounded-xl p-4 mb-4 flex items-center justify-center">
-        <img id="qrImg" alt="Payment QR" class="w-64 h-64 block">
-      </div>
+    <div id="stepPay" class="hidden p-6 relative">
+      <!-- Download QR Button top right -->
+      <button onclick="downloadQR()" class="absolute top-4 right-4 p-2 text-slate-400 hover:text-brand-400 bg-slate-800 rounded-lg transition" title="Download QR">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      </button>
+
+      <p class="text-sm text-slate-400 mb-4 pr-10">Scan with any UPI app and pay the exact amount shown.</p>
+      <div class="bg-white rounded-xl p-4 mb-4 flex items-center justify-center"><img id="qrImg" alt="Payment QR" class="w-56 h-56 block"></div>
+      
       <div class="bg-slate-950 border border-slate-800 rounded-lg p-3 mb-4 text-center">
         <div class="text-xs text-slate-500 mb-1">Pay exactly</div>
-        <div id="amountText" class="text-2xl font-bold text-emerald-400">—</div>
+        <div id="amountText" class="text-2xl font-bold text-brand-400">—</div>
         <div id="expiresText" class="text-xs text-slate-500 mt-1"></div>
       </div>
-      <div class="flex gap-2 mb-3">
-        <a id="downloadQR" download="pluck-qr.png"
-           class="flex-1 text-center bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-lg py-2 text-sm cursor-pointer">
-          Save QR
-        </a>
-        <button onclick="checkPayment()" id="checkBtn"
-                class="flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold rounded-lg py-2 text-sm">
-          I've paid · Check
-        </button>
+
+      <div class="flex flex-col gap-2 mb-3">
+        <button onclick="checkPayment()" id="checkBtn" class="w-full bg-brand-500 hover:bg-brand-400 text-slate-950 font-semibold rounded-lg py-2.5 text-sm transition">I've paid · Check</button>
+        <button onclick="shareQR()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-lg py-2 text-sm transition">Share to Friend</button>
       </div>
+
       <p id="stepErr2" class="text-red-400 text-xs mt-3 hidden"></p>
       <p id="stepInfo2" class="text-slate-400 text-xs mt-3 hidden"></p>
     </div>
 
     <!-- Step 3: success -->
     <div id="stepDone" class="hidden p-6 text-center">
-      <div class="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto mb-4">
-        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
-      </div>
-      <h3 class="text-lg font-semibold mb-1">Payment verified</h3>
+      <div class="w-16 h-16 rounded-full bg-brand-500/20 text-brand-400 flex items-center justify-center mx-auto mb-4"><svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg></div>
+      <h3 class="text-lg font-semibold mb-1 text-slate-100">Payment verified</h3>
       <p class="text-sm text-slate-400 mb-4">Your key is ready. Save it — you'll enter it in the app to log in.</p>
-      <div class="bg-slate-950 border border-emerald-500/30 rounded-lg p-4 mb-4">
+      <div class="bg-slate-950 border border-brand-500/30 rounded-lg p-4 mb-4">
         <div class="text-xs text-slate-500 mb-1">Your key</div>
-        <div id="doneKey" class="font-mono text-xl font-bold text-emerald-400 tracking-wider">—</div>
+        <div id="doneKey" class="font-mono text-xl font-bold text-brand-400 tracking-wider">—</div>
         <div id="doneExpiry" class="text-xs text-slate-500 mt-1"></div>
       </div>
-      <button onclick="copyKey()" id="copyBtn"
-              class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-lg py-2 text-sm mb-2">
-        Copy key
-      </button>
-      <a href="https://github.com/realximanta/Pluck/releases/latest" target="_blank" rel="noopener"
-         class="block w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold rounded-lg py-2 text-sm">
-        Download the app
-      </a>
+      <button onclick="copyKey()" id="copyBtn" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-lg py-2 text-sm mb-2 transition">Copy key</button>
+      <a href="https://github.com/realximanta/Pluck/releases/latest" target="_blank" rel="noopener" class="block w-full bg-brand-500 hover:bg-brand-400 text-slate-950 font-semibold rounded-lg py-2 text-sm transition">Download the app</a>
     </div>
   </div>
 </div>
 
+<script src="https://unpkg.com/aos@2.3.4/dist/aos.js"></script>
 <script>
-let currentPlan = null;
-let currentFP = null;
-let countdownTimer = null;
+(function () {
+  'use strict';
+  
+  // --- Modal State ---
+  let currentPlan = null;
+  let currentFP = null;
+  let countdownTimer = null;
+  let currentQrBase64 = null;
 
-async function loadPlans() {
-  try {
-    const r = await fetch('/api/plans');
-    const plans = await r.json();
-    document.getElementById('planGrid').innerHTML = plans.map(p => `
-      <div class="bg-slate-900/50 border border-slate-800 hover:border-emerald-500/50 rounded-2xl p-6 transition flex flex-col">
-        <div class="text-xs text-emerald-400 font-medium mb-1">${p.duration_days} day${p.duration_days>1?'s':''}</div>
-        <div class="text-xl font-bold mb-1">${p.name}</div>
-        <div class="text-3xl font-extrabold mb-4">₹${p.amount}</div>
-        <div class="text-xs text-slate-400 mb-6 flex-1">${p.description}</div>
-        <button onclick='openModal(${JSON.stringify(p)})'
-                class="w-full bg-slate-800 hover:bg-emerald-500 hover:text-slate-950 text-slate-200 font-medium rounded-lg py-2 text-sm transition">
-          Get ${p.name}
-        </button>
-      </div>
-    `).join('');
-  } catch (e) {
-    document.getElementById('planGrid').innerHTML =
-      '<div class="col-span-full text-center text-red-400">Failed to load plans.</div>';
+  // --- Site Init ---
+  function initSite() {
+    try { AOS.init({ duration: 700, easing: 'ease-out-cubic', once: true, offset: 60 }); } catch (e) {}
+    if (window.lucide && lucide.createIcons) { try { lucide.createIcons(); } catch (e) {} }
+    const y = document.getElementById('year'); if (y) y.textContent = new Date().getFullYear();
+    initCounters();
+    loadLatest();
+    loadPlans();
   }
-}
+  window.__reinitSite = initSite;
 
-function openModal(plan) {
-  currentPlan = plan;
-  currentFP = null;
-  document.getElementById('modalPlan').textContent = plan.name + ' plan';
-  document.getElementById('modalPrice').textContent = '₹' + plan.amount + ' · ' + plan.duration_days + ' days';
-  document.getElementById('modal').classList.remove('hidden');
-  showStep('stepName');
-  document.getElementById('purchaseName').value = '';
-  document.getElementById('purchaseName').focus();
-}
-
-function closeModal() {
-  document.getElementById('modal').classList.add('hidden');
-  if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
-}
-
-function showStep(id) {
-  ['stepName','stepPay','stepDone'].forEach(s => document.getElementById(s).classList.add('hidden'));
-  document.getElementById(id).classList.remove('hidden');
-}
-
-function err(el, msg) {
-  const e = document.getElementById(el);
-  e.textContent = msg;
-  e.classList.remove('hidden');
-}
-
-function clearErr(el) {
-  document.getElementById(el).classList.add('hidden');
-}
-
-async function generateQR() {
-  const name = document.getElementById('purchaseName').value.trim();
-  if (!name) { err('stepErr1', 'Enter your name.'); return; }
-  clearErr('stepErr1');
-
-  const btn = document.getElementById('genBtn');
-  btn.disabled = true; btn.textContent = 'Generating…';
-
-  try {
-    const r = await fetch('/api/qr', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ plan_id: currentPlan.id, name })
+  function initCounters() {
+    document.querySelectorAll('[data-count]').forEach(el => {
+      if (el.dataset.animated === '1') return;
+      const io = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            el.dataset.animated = '1'; animateCount(el); io.unobserve(el);
+          }
+        });
+      }, { threshold: 0.3 });
+      io.observe(el);
     });
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.error || 'Failed to generate QR');
+  }
 
-    currentFP = data.final_amount;
-    document.getElementById('qrImg').src = 'data:image/png;base64,' + data.qr_image_base64;
-    document.getElementById('downloadQR').href = 'data:image/png;base64,' + data.qr_image_base64;
-    document.getElementById('downloadQR').download = 'pluck-qr-' + data.final_amount + '.png';
-    document.getElementById('amountText').textContent = '₹' + data.final_amount;
+  function animateCount(el) {
+    const target = parseInt(el.dataset.count, 10);
+    const suffix = el.dataset.suffix || '';
+    const dur = 1200;
+    const t0 = performance.now();
+    function tick(now) {
+      const t = Math.min(1, (now - t0) / dur);
+      const eased = 1 - Math.pow(1 - t, 3);
+      el.textContent = Math.round(target * eased).toLocaleString() + suffix;
+      if (t < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  async function loadLatest() {
+    try {
+      const r = await fetch('https://raw.githubusercontent.com/realximanta/Pluck/main/data/latest.json?t=' + Date.now());
+      if (!r.ok) throw new Error('no release data');
+      const data = await r.json();
+      
+      const sizeMB = data.apk_size ? (data.apk_size / 1048576).toFixed(1) : '—';
+      const date = new Date(data.published_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+      const vTag = data.tag.replace(/^v/, '');
+      
+      const setText = (id, txt) => { const e = document.getElementById(id); if (e) e.textContent = txt; };
+      const setAttr = (id, a, v) => { const e = document.getElementById(id); if (e) e.setAttribute(a, v); };
+      
+      setText('apkBtnText', 'Download v' + vTag);
+      setText('apkBtnTextBottom', 'Download v' + vTag);
+      setAttr('apkBtn', 'href', data.apk_url);
+      setAttr('apkBtnBottom', 'href', data.apk_url);
+      setText('latestInfo', data.tag + ' · ' + date + (data.apk_size ? ' · ' + sizeMB + ' MB' : ''));
+      setText('versionPill', 'Open source · Android · ' + data.tag);
+    } catch (e) {
+      const i = document.getElementById('latestInfo');
+      if (i) i.textContent = 'Check GitHub for latest release.';
+    }
+  }
+
+  // --- Plans & Purchase ---
+  async function loadPlans() {
+    try {
+      const r = await fetch('/api/plans');
+      if (!r.ok) throw new Error('Failed to load plans');
+      const plans = await r.json();
+      document.getElementById('planGrid').innerHTML = plans.map(p => `
+        <div class="bg-slate-900/50 border border-slate-800 hover:border-emerald-500/50 rounded-2xl p-6 transition flex flex-col">
+          <div class="text-xs text-brand-400 font-medium mb-1">${p.duration_days} day${p.duration_days>1?'s':''}</div>
+          <div class="text-xl font-bold mb-1 text-slate-100">${p.name}</div>
+          <div class="text-3xl font-extrabold mb-4 text-slate-100">₹${p.amount}</div>
+          <div class="text-xs text-slate-400 mb-6 flex-1">${p.description}</div>
+          <button onclick='openModal(${JSON.stringify(p)})' class="w-full bg-slate-800 hover:bg-brand-500 hover:text-slate-950 text-slate-200 font-medium rounded-lg py-2 text-sm transition">
+            Get ${p.name}
+          </button>
+        </div>
+      `).join('');
+    } catch (e) {
+      document.getElementById('planGrid').innerHTML = '<div class="col-span-full text-center text-red-400">Failed to load plans. Server might be waking up.</div>';
+    }
+  }
+
+  window.openModal = function(plan) {
+    currentPlan = plan;
+    currentFP = null;
+    currentQrBase64 = null;
+    document.getElementById('modalPlan').textContent = plan.name + ' plan';
+    document.getElementById('modalPrice').textContent = '₹' + plan.amount + ' · ' + plan.duration_days + ' days';
+    document.getElementById('modal').classList.remove('hidden');
+    showStep('stepName');
+    document.getElementById('purchaseName').value = '';
+    document.getElementById('purchaseName').focus();
+  }
+
+  window.closeModal = function() {
+    document.getElementById('modal').classList.add('hidden');
+    if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+  }
+
+  function showStep(id) {
+    ['stepName','stepPay','stepDone'].forEach(s => document.getElementById(s).classList.add('hidden'));
+    document.getElementById(id).classList.remove('hidden');
+  }
+
+  function err(el, msg) { const e = document.getElementById(el); e.textContent = msg; e.classList.remove('hidden'); }
+  function clearErr(el) { document.getElementById(el).classList.add('hidden'); }
+
+  window.generateQR = async function() {
+    const name = document.getElementById('purchaseName').value.trim();
+    if (!name) { err('stepErr1', 'Enter your name.'); return; }
+    clearErr('stepErr1');
+
+    const btn = document.getElementById('genBtn');
+    btn.disabled = true; btn.textContent = 'Generating…';
+
+    try {
+      const r = await fetch('/api/qr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan_id: currentPlan.id, name })
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Failed to generate QR');
+
+      currentFP = data.final_amount;
+      currentQrBase64 = data.qr_image_base64;
+      document.getElementById('qrImg').src = 'data:image/png;base64,' + currentQrBase64;
+      document.getElementById('amountText').textContent = '₹' + data.final_amount;
+      clearErr('stepErr2');
+      document.getElementById('stepInfo2').classList.add('hidden');
+      showStep('stepPay');
+
+      let remaining = data.expires_in;
+      const expEl = document.getElementById('expiresText');
+      const tick = () => {
+        if (remaining <= 0) {
+          expEl.textContent = 'QR expired — close and generate a new one.';
+          expEl.className = 'text-xs text-red-400 mt-1';
+          if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+          return;
+        }
+        const m = Math.floor(remaining / 60), s = remaining % 60;
+        expEl.textContent = 'Expires in ' + m + ':' + String(s).padStart(2, '0');
+        expEl.className = 'text-xs text-slate-500 mt-1';
+        remaining--;
+      };
+      tick();
+      if (countdownTimer) clearInterval(countdownTimer);
+      countdownTimer = setInterval(tick, 1000);
+    } catch (e) {
+      err('stepErr1', e.message);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Generate QR';
+    }
+  }
+
+  window.checkPayment = async function() {
+    if (!currentFP) return;
+    const btn = document.getElementById('checkBtn');
+    btn.disabled = true; btn.textContent = 'Checking…';
     clearErr('stepErr2');
     document.getElementById('stepInfo2').classList.add('hidden');
-    showStep('stepPay');
 
-    let remaining = data.expires_in;
-    const expEl = document.getElementById('expiresText');
-    const tick = () => {
-      if (remaining <= 0) {
-        expEl.textContent = 'QR expired — close and generate a new one.';
-        expEl.className = 'text-xs text-red-400 mt-1';
+    try {
+      const r = await fetch('/api/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ final_amount: currentFP })
+      });
+      const data = await r.json();
+
+      if (data.verified && data.key) {
+        document.getElementById('doneKey').textContent = data.key;
+        const exp = new Date(data.expires_at * 1000).toLocaleDateString();
+        document.getElementById('doneExpiry').textContent = 'Expires ' + exp;
         if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+        showStep('stepDone');
         return;
       }
-      const m = Math.floor(remaining / 60), s = remaining % 60;
-      expEl.textContent = 'Expires in ' + m + ':' + String(s).padStart(2, '0');
-      expEl.className = 'text-xs text-slate-500 mt-1';
-      remaining--;
-    };
-    tick();
-    if (countdownTimer) clearInterval(countdownTimer);
-    countdownTimer = setInterval(tick, 1000);
-  } catch (e) {
-    err('stepErr1', e.message);
-  } finally {
-    btn.disabled = false; btn.textContent = 'Generate QR';
+
+      if (data.status === 'not_found') {
+        const info = document.getElementById('stepInfo2');
+        info.textContent = 'Payment not detected yet. Wait 30 seconds and try again.';
+        info.classList.remove('hidden');
+      } else if (data.status === 'expired') {
+        err('stepErr2', 'QR expired. Close and generate a new one.');
+      } else if (data.status === 'mismatch') {
+        err('stepErr2', 'Payment amount did not match. Contact support.');
+      } else if (data.message) {
+        err('stepErr2', data.message);
+      } else {
+        err('stepErr2', 'Status: ' + (data.status || 'unknown'));
+      }
+    } catch (e) {
+      err('stepErr2', 'Network error: ' + e.message);
+    } finally {
+      btn.disabled = false; btn.textContent = "I've paid · Check";
+    }
   }
-}
 
-async function checkPayment() {
-  if (!currentFP) return;
-  const btn = document.getElementById('checkBtn');
-  btn.disabled = true; btn.textContent = 'Checking…';
-  clearErr('stepErr2');
-  document.getElementById('stepInfo2').classList.add('hidden');
+  window.downloadQR = function() {
+    if (!currentQrBase64 || !currentFP) return;
+    const a = document.createElement('a');
+    a.href = 'data:image/png;base64,' + currentQrBase64;
+    a.download = 'pluck-qr-' + currentFP + '.png';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
 
-  try {
-    const r = await fetch('/api/verify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ final_amount: currentFP })
+  window.shareQR = function() {
+    if (!currentQrBase64 || !currentFP) return;
+    // Convert base64 to blob for sharing
+    fetch('data:image/png;base64,' + currentQrBase64)
+      .then(res => res.blob())
+      .then(blob => {
+        const file = new File([blob], 'pluck-qr.png', { type: 'image/png' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          navigator.share({
+            title: 'Pluck Payment',
+            text: 'Pay exactly ₹' + currentFP + ' to get my Pluck premium key.',
+            files: [file]
+          }).catch(console.error);
+        } else {
+          alert('Sharing files is not supported on this browser. Use Download QR instead.');
+        }
+      });
+  }
+
+  window.copyKey = function() {
+    const key = document.getElementById('doneKey').textContent;
+    navigator.clipboard.writeText(key).then(() => {
+      const btn = document.getElementById('copyBtn');
+      const old = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(() => btn.textContent = old, 1500);
     });
-    const data = await r.json();
-
-    if (data.verified && data.key) {
-      document.getElementById('doneKey').textContent = data.key;
-      const exp = new Date(data.expires_at * 1000).toLocaleDateString();
-      document.getElementById('doneExpiry').textContent = 'Expires ' + exp;
-      if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
-      showStep('stepDone');
-      return;
-    }
-
-    if (data.status === 'not_found') {
-      const info = document.getElementById('stepInfo2');
-      info.textContent = 'Payment not detected yet. Wait 30 seconds and try again.';
-      info.classList.remove('hidden');
-    } else if (data.status === 'expired') {
-      err('stepErr2', 'QR expired. Close and generate a new one.');
-    } else if (data.status === 'mismatch') {
-      err('stepErr2', 'Payment amount did not match. Contact support.');
-    } else if (data.message) {
-      err('stepErr2', data.message);
-    } else {
-      err('stepErr2', 'Status: ' + (data.status || 'unknown'));
-    }
-  } catch (e) {
-    err('stepErr2', 'Network error: ' + e.message);
-  } finally {
-    btn.disabled = false; btn.textContent = "I've paid · Check";
   }
-}
 
-function copyKey() {
-  const key = document.getElementById('doneKey').textContent;
-  navigator.clipboard.writeText(key).then(() => {
-    const btn = document.getElementById('copyBtn');
-    const old = btn.textContent;
-    btn.textContent = 'Copied!';
-    setTimeout(() => btn.textContent = old, 1500);
+  document.getElementById('modal').addEventListener('click', (e) => {
+    if (e.target.id === 'modal') closeModal();
   });
-}
 
-document.getElementById('modal').addEventListener('click', (e) => {
-  if (e.target.id === 'modal') closeModal();
-});
+  // --- Devtools deterrence ---
+  document.addEventListener('keydown', function (e) {
+    const k = (e.key || '').toLowerCase();
+    const blocked = e.key === 'F12' || (e.ctrlKey && e.shiftKey && ['i','j','c','k'].includes(k)) || (e.ctrlKey && ['u','s','p'].includes(k)) || (e.metaKey && e.altKey && ['i','j','c'].includes(k)) || (e.metaKey && ['u','s','p'].includes(k));
+    if (blocked) { e.preventDefault(); e.stopPropagation(); return false; }
+  }, true);
 
-loadPlans();
+  document.addEventListener('contextmenu', function (e) {
+    e.preventDefault(); e.stopPropagation(); return false;
+  }, true);
+
+  let savedHTML = null, guardShown = false;
+  function devtoolsOpen() {
+    const w = window.outerWidth - window.innerWidth;
+    const h = window.outerHeight - window.innerHeight;
+    return w > 160 || h > 160;
+  }
+  function showGuard() {
+    if (guardShown) return;
+    const app = document.getElementById('app');
+    if (!app) return;
+    savedHTML = app.innerHTML;
+    guardShown = true;
+    app.innerHTML = '<div class="guard-screen"><div class="guard-inner"><div class="guard-title">Inspect mode detected</div><div class="guard-text">Please close developer tools to continue browsing Pluck.</div></div></div>';
+  }
+  function hideGuard() {
+    if (!guardShown || savedHTML === null) return;
+    const app = document.getElementById('app');
+    if (!app) return;
+    app.innerHTML = savedHTML;
+    savedHTML = null;
+    guardShown = false;
+    try { window.__reinitSite && window.__reinitSite(); } catch (e) {}
+  }
+  setInterval(function () { if (devtoolsOpen()) showGuard(); else hideGuard(); }, 400);
+  setInterval(function () { try { console.clear(); } catch (e) {} }, 1500);
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initSite);
+  } else {
+    initSite();
+  }
+})();
 </script>
 </body>
 </html>
