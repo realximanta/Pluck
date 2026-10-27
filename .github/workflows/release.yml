@@ -101,9 +101,9 @@ jobs:
           KEY_PASSWORD:      ${{ secrets.KEY_PASSWORD }}
         run: |
           export KEYSTORE_PATH="$HOME/.android/release.keystore"
-          API_URL="${{ vars.PLUCK_API_BASE_URL }}"
+          API_URL="${{ secrets.PLUCK_API_BASE_URL }}"
           if [ -z "$API_URL" ]; then
-            echo "::warning::PLUCK_API_BASE_URL variable not set, using fallback"
+            echo "::warning::PLUCK_API_BASE_URL secret not set, using fallback"
           fi
           if [ -f "./gradlew" ]; then
             chmod +x ./gradlew
