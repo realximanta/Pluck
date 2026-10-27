@@ -21,7 +21,6 @@ const (
 	fpMaxRetries = 5
 )
 
-// Reservation ties a fingerprint amount to a purchasing session.
 type Reservation struct {
 	FP        string `json:"fp"`
 	PlanID    string `json:"plan_id"`
@@ -29,8 +28,6 @@ type Reservation struct {
 	CreatedAt int64  `json:"created_at"`
 }
 
-// ReserveFingerprint checks KV for an existing reservation on fp.
-// If clean, writes it with 15-min TTL. Returns (reservation, conflict, err).
 func (a *App) ReserveFingerprint(ctx context.Context, fp string, r Reservation) (*Reservation, bool, error) {
 	_, found, err := a.kv.Get(ctx, fpPrefix+fp)
 	if err != nil {
@@ -51,12 +48,10 @@ func (a *App) ReserveFingerprint(ctx context.Context, fp string, r Reservation) 
 	return &r, false, nil
 }
 
-// ReleaseFingerprint removes the reservation. Safe to call on missing key.
 func (a *App) ReleaseFingerprint(ctx context.Context, fp string) error {
 	return a.kv.Delete(ctx, fpPrefix+fp)
 }
 
-// QRResponse is what /api/qr returns to the Android app.
 type QRResponse struct {
 	PlanID       string `json:"plan_id"`
 	PlanName     string `json:"plan_name"`
@@ -66,13 +61,11 @@ type QRResponse struct {
 	ExpiresIn    int    `json:"expires_in"`
 }
 
-// QRRequest is the body of POST /api/qr.
 type QRRequest struct {
 	PlanID string `json:"plan_id"`
 	Name   string `json:"name"`
 }
 
-// HandleQR is POST /api/qr — public, no auth (pre-purchase flow).
 func (a *App) HandleQR(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -137,7 +130,6 @@ func (a *App) HandleQR(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// callQRAPI asks the external QR generator for a PNG and its X-Final-Amount header.
 func (a *App) callQRAPI(ctx context.Context, baseAmount int) (string, []byte, error) {
 	u, err := url.Parse(a.cfg.AutopayQRURL)
 	if err != nil {
@@ -200,11 +192,4 @@ func randomRemark(n int) string {
 		b.WriteByte(remarkAlphabet[v.Int64()])
 	}
 	return b.String()
-}
-
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n]
 }
