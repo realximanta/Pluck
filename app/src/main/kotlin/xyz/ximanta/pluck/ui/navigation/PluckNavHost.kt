@@ -1,21 +1,13 @@
 package xyz.ximanta.pluck.ui.navigation
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -62,13 +54,9 @@ fun PluckNavHost(
     LaunchedEffect(authState.loaded, authState.isLoggedIn) {
         if (!authState.loaded) return@LaunchedEffect
         when {
-            route == ROUTE_LOADING ->
-                route = if (authState.isLoggedIn) ROUTE_HOME else ROUTE_LOGIN
-            route == ROUTE_LOGIN && authState.isLoggedIn ->
-                route = ROUTE_HOME
-            route == ROUTE_HOME && !authState.isLoggedIn ->
-                route = ROUTE_LOGIN
-            // purchase stays put — leaves via onContinue or onBack
+            route == ROUTE_LOADING -> route = if (authState.isLoggedIn) ROUTE_HOME else ROUTE_LOGIN
+            route == ROUTE_LOGIN && authState.isLoggedIn -> route = ROUTE_HOME
+            route == ROUTE_HOME && !authState.isLoggedIn -> route = ROUTE_LOGIN
         }
     }
 
@@ -76,16 +64,19 @@ fun PluckNavHost(
         if (route == ROUTE_LOGIN) purchaseViewModel.clearAll()
     }
 
+    BackHandler(enabled = route == ROUTE_PURCHASE) {
+        purchaseViewModel.clearAll()
+        route = ROUTE_LOGIN
+    }
+
     when (route) {
         ROUTE_LOADING -> SplashScreen()
-
         ROUTE_LOGIN -> LoginScreen(
             loginState = loginState,
             onLogin = { loginViewModel.login(it) },
             onNavigateToPurchase = { route = ROUTE_PURCHASE },
             modifier = modifier
         )
-
         ROUTE_PURCHASE -> {
             val plansState by purchaseViewModel.plansState.collectAsStateWithLifecycle()
             val selectedPlan by purchaseViewModel.selectedPlan.collectAsStateWithLifecycle()
@@ -115,7 +106,6 @@ fun PluckNavHost(
                 modifier = modifier
             )
         }
-
         ROUTE_HOME -> AppShell(
             viewModel = homeViewModel,
             authState = authState,
@@ -128,35 +118,20 @@ fun PluckNavHost(
 @Composable
 private fun SplashScreen() {
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(PluckColors.Slate950),
+        modifier = Modifier.fillMaxSize().background(PluckColors.Slate950),
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(
-                modifier = Modifier
-                    .size(64.dp)
-                    .background(PluckColors.Emerald500, RoundedCornerShape(18.dp)),
+                modifier = Modifier.size(64.dp).background(PluckColors.Emerald500, RoundedCornerShape(18.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "P",
-                    fontSize = 36.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = PluckColors.Slate950,
-                    fontFamily = FontFamily.SansSerif
-                )
+                Text("P", fontSize = 36.sp, fontWeight = FontWeight.ExtraBold, color = PluckColors.Slate950)
             }
             CircularProgressIndicator(
                 color = PluckColors.Emerald500,
                 strokeWidth = 2.dp,
-                modifier = Modifier
-                    .padding(top = 24.dp)
-                    .size(24.dp)
+                modifier = Modifier.padding(top = 24.dp).size(24.dp)
             )
         }
     }
