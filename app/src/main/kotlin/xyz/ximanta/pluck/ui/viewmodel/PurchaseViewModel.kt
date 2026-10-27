@@ -9,12 +9,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import xyz.ximanta.pluck.data.ApiClient
-import xyz.ximanta.pluck.data.ApiException
-import xyz.ximanta.pluck.data.AuthStore
-import xyz.ximanta.pluck.data.Plan
-import xyz.ximanta.pluck.data.QRResponse
-import xyz.ximanta.pluck.data.VerifyResponse
+import xyz.ximanta.pluck.data.*
+import java.io.File
 
 sealed class PlansState {
     object Idle : PlansState()
@@ -35,11 +31,7 @@ sealed class VerifyState {
     object Idle : VerifyState()
     object Checking : VerifyState()
     data class NotFound(val message: String) : VerifyState()
-    data class Verified(
-        val key: String,
-        val planName: String,
-        val expiresAt: Long
-    ) : VerifyState()
+    data class Verified(val key: String, val planName: String, val expiresAt: Long) : VerifyState()
     data class Error(val message: String) : VerifyState()
 }
 
@@ -72,7 +64,7 @@ class PurchaseViewModel(
             _plansState.value = PlansState.Loading
             apiClient.plans()
                 .onSuccess { _plansState.value = PlansState.Success(it) }
-                .onFailure { _plansState.value = PlansState.Error(humanize(it)) }
+                .onFailure { _plansState.value = PlansState.Error(it.message ?: "Error loading plans") }
         }
     }
 
@@ -84,10 +76,7 @@ class PurchaseViewModel(
     fun requestQr(name: String) {
         val plan = _selectedPlan.value ?: return
         val cleanName = name.trim()
-        if (cleanName.isBlank()) {
-            _qrState.value = QrState.Error("Enter your name")
-            return
-        }
+        if (cleanName.isBlank()) return
         viewModelScope.launch {
             _qrState.value = QrState.Loading
             _verifyState.value = VerifyState.Idle
@@ -97,7 +86,7 @@ class PurchaseViewModel(
                     _qrState.value = QrState.Ready(resp)
                     startCountdown(resp.expiresIn)
                 }
-                .onFailure { _qrState.value = QrState.Error(humanize(it)) }
+                .onFailure { _qrState.value = QrState.Error(it.message ?: "Error") }
         }
     }
 
@@ -106,65 +95,33 @@ class PurchaseViewModel(
         viewModelScope.launch {
             _verifyState.value = VerifyState.Checking
             apiClient.verify(currentFinalAmount)
-                .onSuccess { resp -> handleVerifyResponse(resp) }
-                .onFailure { e ->
-                    _verifyState.value = if (isRateLimited(e)) {
-                        VerifyState.NotFound("Too many checks. Wait a moment.")
+                .onSuccess { resp ->
+                    if (resp.verified && !resp.key.isNullOrBlank()) {
+                        val key = resp.key
+                        val planName = resp.planName ?: _selectedPlan.value?.name ?: ""
+                        val expires = resp.expiresAt
+                        authStore.save(key, "", planName, expires)
+                        countdownJob?.cancel()
+                        _verifyState.value = VerifyState.Verified(key, planName, expires)
+                    } else if (resp.status == "not_found") {
+                        _verifyState.value = VerifyState.NotFound(resp.message ?: "Wait and try again")
                     } else {
-                        VerifyState.Error(humanize(e))
+                        _verifyState.value = VerifyState.Error(resp.message ?: "Status: ${resp.status}")
                     }
                 }
-        }
-    }
-
-    private suspend fun handleVerifyResponse(resp: VerifyResponse) {
-        when {
-            resp.verified && !resp.key.isNullOrBlank() -> {
-                val key = resp.key
-                val planName = resp.planName ?: _selectedPlan.value?.name ?: ""
-                val expires = resp.expiresAt
-                authStore.save(
-                    key = key,
-                    name = "",
-                    planName = planName,
-                    expiresAt = expires
-                )
-                countdownJob?.cancel()
-                _verifyState.value = VerifyState.Verified(key, planName, expires)
-            }
-            resp.status == "not_found" -> {
-                _verifyState.value = VerifyState.NotFound(
-                    resp.message ?: "Payment not detected yet. Wait and try again."
-                )
-            }
-            resp.status == "expired" -> {
-                _qrState.value = QrState.Expired(currentFinalAmount)
-                _verifyState.value = VerifyState.Error("QR expired — generate a new one")
-            }
-            resp.status == "rate_limited" -> {
-                _verifyState.value = VerifyState.NotFound(
-                    "Too many checks. Wait ${resp.retryAfterSeconds.coerceAtLeast(30)}s."
-                )
-            }
-            else -> {
-                _verifyState.value = VerifyState.Error(
-                    resp.message ?: "Status: ${resp.status.ifBlank { "unknown" }}"
-                )
-            }
+                .onFailure { _verifyState.value = VerifyState.Error(it.message ?: "Error") }
         }
     }
 
     private fun startCountdown(seconds: Int) {
         countdownJob?.cancel()
-        _remainingSeconds.value = seconds.coerceAtLeast(0)
+        _remainingSeconds.value = seconds
         countdownJob = viewModelScope.launch {
             while (_remainingSeconds.value > 0) {
-                delay(1_000)
+                delay(1000)
                 _remainingSeconds.value = (_remainingSeconds.value - 1).coerceAtLeast(0)
             }
-            if (_qrState.value is QrState.Ready) {
-                _qrState.value = QrState.Expired(currentFinalAmount)
-            }
+            if (_qrState.value is QrState.Ready) _qrState.value = QrState.Expired(currentFinalAmount)
         }
     }
 
@@ -181,29 +138,11 @@ class PurchaseViewModel(
         _selectedPlan.value = null
     }
 
-    private fun isRateLimited(e: Throwable): Boolean {
-        val msg = e.message ?: return false
-        return msg.contains("rate_limited", ignoreCase = true) ||
-            (e is ApiException && e.statusCode == 429)
-    }
-
-    private fun humanize(e: Throwable): String {
-        val raw = e.message ?: "request failed"
-        return when {
-            raw.contains("Unable to resolve host", ignoreCase = true) ||
-                raw.contains("network", ignoreCase = true) -> "No internet connection"
-            raw.contains("timeout", ignoreCase = true) -> "Network timeout"
-            raw.contains("HTTP 502", ignoreCase = true) -> "Server busy, try again"
-            else -> raw
-        }
-    }
-
     companion object {
         fun factory(apiClient: ApiClient, authStore: AuthStore): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
-                override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                    PurchaseViewModel(apiClient, authStore) as T
+                override fun <T : ViewModel> create(modelClass: Class<T>): T = PurchaseViewModel(apiClient, authStore) as T
             }
     }
 }
