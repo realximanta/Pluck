@@ -16,35 +16,31 @@ import (
 
 const (
 	historyPrefix = "history:"
-	historyTTL    = 90 * 86400 // 90 days
-	historyMax    = 100        // cap response size
+	historyTTL    = 90 * 86400
+	historyMax    = 100
 )
 
 var ErrMissingAppKey = errors.New("missing app key")
 
-// HistoryEntry is one media fetch, stored at kv["history:<key>:<ts>:<id>"].
 type HistoryEntry struct {
 	ID          string `json:"id"`
 	URL         string `json:"url"`
 	Platform    string `json:"platform"`
 	Title       string `json:"title"`
 	Thumbnail   string `json:"thumbnail,omitempty"`
-	MediaType   string `json:"media_type"` // video | audio | image
-	Quality     string `json:"quality"`    // "1080p", "720p", "audio-128kbps", etc.
+	MediaType   string `json:"media_type"`
+	Quality     string `json:"quality"`
 	FetchedAt   int64  `json:"fetched_at"`
 	SizeBytes   int64  `json:"size_bytes,omitempty"`
 	DurationSec int    `json:"duration_sec,omitempty"`
 }
 
-// HistoryResponse is what /api/history returns.
 type HistoryResponse struct {
 	Entries []HistoryEntry `json:"entries"`
 	Count   int            `json:"count"`
 	HasMore bool           `json:"has_more"`
 }
 
-// requireAppKey extracts the key from X-App-Key or Authorization: Bearer,
-// validates it against KV, and returns the normalized key.
 func (a *App) requireAppKey(r *http.Request) (string, error) {
 	key := r.Header.Get("X-App-Key")
 	if key == "" {
@@ -63,15 +59,9 @@ func (a *App) requireAppKey(r *http.Request) (string, error) {
 	return key, nil
 }
 
-// SaveHistoryEntry writes one entry. Called by the fetch handler after a
-// successful media download. Entry.ID and FetchedAt are auto-filled if empty.
 func SaveHistoryEntry(ctx context.Context, c *kv.Client, appKey string, e *HistoryEntry) error {
 	if e.ID == "" {
-		id, err := randomRemark(8)
-		if err != nil {
-			return err
-		}
-		e.ID = id
+		e.ID = randomRemark(8)
 	}
 	if e.FetchedAt == 0 {
 		e.FetchedAt = time.Now().Unix()
@@ -84,7 +74,6 @@ func SaveHistoryEntry(ctx context.Context, c *kv.Client, appKey string, e *Histo
 	return c.Put(ctx, key, data, historyTTL)
 }
 
-// ListHistory returns entries for a key, newest first.
 func ListHistory(ctx context.Context, c *kv.Client, appKey string) ([]HistoryEntry, error) {
 	names, err := c.ListPrefix(ctx, historyPrefix+appKey+":")
 	if err != nil {
@@ -108,12 +97,10 @@ func ListHistory(ctx context.Context, c *kv.Client, appKey string) ([]HistoryEnt
 	return out, nil
 }
 
-// DeleteHistoryEntry removes a single entry by ID. Uses the composite key.
 func DeleteHistoryEntry(ctx context.Context, c *kv.Client, appKey, entryKey string) error {
 	return c.Delete(ctx, entryKey)
 }
 
-// HandleHistory is GET /api/history — requires app key.
 func (a *App) HandleHistory(w http.ResponseWriter, r *http.Request) {
 	key, err := a.requireAppKey(r)
 	if err != nil {
