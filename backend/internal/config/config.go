@@ -22,6 +22,8 @@ type Config struct {
 	AutopayVerifyURL string
 	AutopayQRURL     string
 
+	TurnstileSecretKey string
+
 	PublicBaseURL string
 }
 
@@ -62,6 +64,8 @@ func Load() (*Config, error) {
 		AutopayBotName:   require("AUTOPAY_BOT_NAME"),
 		AutopayVerifyURL: getOr("AUTOPAY_VERIFY_URL", "https://auto-payment.ximanta.xyz/api/verify"),
 		AutopayQRURL:     getOr("AUTOPAY_QR_URL", "https://qr-api-vercel.vercel.app/qr"),
+
+		TurnstileSecretKey: get("TURNSTILE_SECRET_KEY"),
 
 		PublicBaseURL: getOr("PUBLIC_BASE_URL", ""),
 	}
