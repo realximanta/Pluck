@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"mime"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -86,11 +87,37 @@ func (a *App) HandleFetch(w http.ResponseWriter, r *http.Request) {
 
 	cw := &countingWriter{w: w}
 
-	if req.DirectURL != "" {
+	// If FormatID is present, always use yt-dlp. This bypasses YouTube's
+	// direct-URL HTML block pages.
+	if req.FormatID != "" {
+		a.streamYtdlp(ctx, w, cw, &req, appKey)
+	} else if req.DirectURL != "" {
+		if err := isSafeURL(req.DirectURL); err != nil {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
 		a.streamDirect(ctx, w, cw, &req, appKey)
 	} else {
-		a.streamYtdlp(ctx, w, cw, &req, appKey)
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "no format_id or direct_url provided"})
 	}
+}
+
+// isSafeURL prevents SSRF by blocking loopback, private, and link-local IPs.
+func isSafeURL(rawURL string) error {
+	u, err := url.Parse(rawURL)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
+		return fmt.Errorf("invalid URL")
+	}
+	ips, err := net.LookupIP(u.Hostname())
+	if err != nil {
+		return fmt.Errorf("could not resolve host")
+	}
+	for _, ip := range ips {
+		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+			return fmt.Errorf("access to private networks is forbidden")
+		}
+	}
+	return nil
 }
 
 func (a *App) streamDirect(ctx context.Context, w http.ResponseWriter, cw *countingWriter, req *FetchRequest, appKey string) {
@@ -165,6 +192,7 @@ func (a *App) streamYtdlp(ctx context.Context, w http.ResponseWriter, cw *counti
 	args := []string{
 		"--no-warnings", "--no-playlist", "--no-check-certificates",
 		"--socket-timeout", "10", "--no-progress",
+		"--extractor-args", "youtube:player_client=default,tv,web",
 		"-f", format,
 		"-o", "-",
 		"--", req.URL,
@@ -219,6 +247,7 @@ func (a *App) streamYtdlpMerged(ctx context.Context, w http.ResponseWriter, cw *
 	args := []string{
 		"--no-warnings", "--no-playlist", "--no-check-certificates",
 		"--socket-timeout", "10", "--no-progress",
+		"--extractor-args", "youtube:player_client=default,tv,web",
 		"--merge-output-format", "mp4",
 		"-f", format,
 		"-o", tmpName,
