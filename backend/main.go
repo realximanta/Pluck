@@ -35,6 +35,8 @@ func main() {
 	mux.HandleFunc("GET /api/plans", app.HandlePublicPlans)
 
 	mux.HandleFunc("GET /admin", app.HandleAdminPage)
+	mux.HandleFunc("POST /admin/login", app.HandleAdminLogin)
+	mux.HandleFunc("POST /admin/logout", app.HandleAdminLogout)
 	mux.HandleFunc("GET /admin/keys.json", app.HandleAdminList)
 	mux.HandleFunc("POST /admin/keys", app.HandleAdminCreate)
 	mux.HandleFunc("POST /admin/revoke", app.HandleAdminRevoke)
