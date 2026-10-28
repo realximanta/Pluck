@@ -134,8 +134,9 @@ class HomeViewModel(
             _fetchState.value = HomeFetchState.Downloading(0L, null, null, "Starting…")
             val request = FetchRequest(
                 url = resolve.url,
-                formatId = format.formatId.takeIf { it.isNotBlank() && format.directUrl.isBlank() },
-                directUrl = format.directUrl.takeIf { it.isNotBlank() },
+                // We rely on FormatID for all media sites. The backend will use yt-dlp.
+                formatId = format.formatId.takeIf { it.isNotBlank() },
+                directUrl = format.directUrl.takeIf { it.isNotBlank() && format.formatId.isBlank() },
                 mediaType = pick.mediaType,
                 mergeAudio = format.note.contains("merge", ignoreCase = true),
                 filename = format.filename.takeIf { it.isNotBlank() },
