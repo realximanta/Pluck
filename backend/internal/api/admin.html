@@ -65,11 +65,9 @@
 
 <script>
 const PLANS = [{"id":"trial","name":"Go"},{"id":"week","name":"Basic"},{"id":"month","name":"Plus"},{"id":"quarter","name":"Pro"}];
-let ADMIN_KEY = sessionStorage.getItem('pluck_admin_key') || '';
 
-function headers(extra){ const h = Object.assign({}, extra||{}); if (ADMIN_KEY) h['X-Admin-Key']=ADMIN_KEY; return h; }
 async function api(path, opts){
-  opts = opts || {}; opts.headers = headers(opts.headers);
+  opts = opts || {};
   const r = await fetch(path, opts);
   if (r.status === 401) { logout(); throw new Error('unauthorized'); }
   return r.json();
@@ -78,21 +76,25 @@ async function api(path, opts){
 async function login(){
   const k = document.getElementById('gateKey').value.trim();
   if (!k) return;
-  ADMIN_KEY = k;
   try {
-    await api('/admin/keys.json');
-    sessionStorage.setItem('pluck_admin_key', k);
+    const r = await fetch('/admin/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({key: k})
+    });
+    if (!r.ok) throw new Error('unauthorized');
     showPanel();
   } catch (e) {
-    ADMIN_KEY='';
     document.getElementById('gateErr').classList.remove('hidden');
   }
 }
-function logout(){
-  ADMIN_KEY=''; sessionStorage.removeItem('pluck_admin_key');
+
+async function logout(){
+  try { await fetch('/admin/logout', {method: 'POST'}); } catch(e) {}
   document.getElementById('gate').classList.remove('hidden');
   document.getElementById('panel').classList.add('hidden');
 }
+
 function showPanel(){
   document.getElementById('gate').classList.add('hidden');
   document.getElementById('panel').classList.remove('hidden');
@@ -100,20 +102,23 @@ function showPanel(){
   if (!sel.options.length) sel.innerHTML = PLANS.map(p=>'<option value="'+p.id+'">'+p.name+'</option>').join('');
   loadKeys();
 }
+
 function fmt(ts){ if(!ts) return '—'; return new Date(ts*1000).toLocaleDateString(); }
 
 async function loadKeys(){
-  const rows = await api('/admin/keys.json');
-  document.getElementById('rows').innerHTML = rows.map(k=>(
-    '<tr class="border-t border-slate-800">'+
-    '<td class="px-4 py-2 font-mono">'+k.key+'</td>'+
-    '<td class="px-4 py-2">'+k.name+'</td>'+
-    '<td class="px-4 py-2">'+k.plan_name+'</td>'+
-    '<td class="px-4 py-2">'+fmt(k.expires_at)+'</td>'+
-    '<td class="px-4 py-2 '+(k.status==='active'?'text-emerald-400':'text-red-400')+'">'+k.status+'</td>'+
-    '<td class="px-4 py-2 text-slate-400">'+k.source+'</td>'+
-    '</tr>'
-  )).join('') || '<tr><td colspan="6" class="px-4 py-6 text-center text-slate-500">No keys yet.</td></tr>';
+  try {
+    const rows = await api('/admin/keys.json');
+    document.getElementById('rows').innerHTML = rows.map(k=>(
+      '<tr class="border-t border-slate-800">'+
+      '<td class="px-4 py-2 font-mono">'+k.key+'</td>'+
+      '<td class="px-4 py-2">'+k.name+'</td>'+
+      '<td class="px-4 py-2">'+k.plan_name+'</td>'+
+      '<td class="px-4 py-2">'+fmt(k.expires_at)+'</td>'+
+      '<td class="px-4 py-2 '+(k.status==='active'?'text-emerald-400':'text-red-400')+'">'+k.status+'</td>'+
+      '<td class="px-4 py-2 text-slate-400">'+k.source+'</td>'+
+      '</tr>'
+    )).join('') || '<tr><td colspan="6" class="px-4 py-6 text-center text-slate-500">No keys yet.</td></tr>';
+  } catch(e) {}
 }
 
 async function createKey(){
@@ -140,7 +145,8 @@ async function revokeKey(){
   } catch(e) { document.getElementById('rOut').textContent = 'Error: '+e.message; }
 }
 
-if (ADMIN_KEY) { api('/admin/keys.json').then(showPanel).catch(()=>logout()); }
+// Try loading panel on init in case session is active
+api('/admin/keys.json').then(showPanel).catch(()=>{});
 </script>
 </body>
 </html>
