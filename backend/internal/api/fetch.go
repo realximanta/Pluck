@@ -4,7 +4,6 @@ package api
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -28,7 +27,6 @@ const (
 	fetchTempPrefix = "pluck-fetch-"
 )
 
-// safeFormatRegex blocks command injection by only allowing alphanumeric, +, _, and -
 var safeFormatRegex = regexp.MustCompile(`^[a-zA-Z0-9+_\-]+$`)
 
 type FetchRequest struct {
@@ -75,7 +73,6 @@ func (a *App) HandleFetch(w http.ResponseWriter, r *http.Request) {
 	req.MediaType = strings.ToLower(strings.TrimSpace(req.MediaType))
 	req.Ext = strings.TrimPrefix(strings.ToLower(strings.TrimSpace(req.Ext)), ".")
 
-	// SECURITY: Block command injection in FormatID
 	if req.FormatID != "" && !safeFormatRegex.MatchString(req.FormatID) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid format_id"})
 		return
@@ -118,22 +115,21 @@ func safeDialContext(ctx context.Context, network, addr string) (net.Conn, error
 		return nil, err
 	}
 	for _, ip := range ips {
-		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
-			continue // Skip unsafe IPs
+		// SECURITY: Block unspecified (0.0.0.0), loopback, private, and link-local IPs
+		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
+			continue 
 		}
-		// Connect using the validated IP
 		return (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
 	}
 	return nil, fmt.Errorf("no safe IPs found for %s", host)
 }
 
 func (a *App) streamDirect(ctx context.Context, w http.ResponseWriter, cw *countingWriter, req *FetchRequest, appKey string) {
-	// Use a secure client with the custom dialer for user-supplied URLs
+	// SECURITY: TLS verification is enabled (InsecureSkipVerify removed) to prevent MITM.
 	safeClient := &http.Client{
 		Timeout: 30 * time.Second,
 		Transport: &http.Transport{
-			DialContext:     safeDialContext,
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			DialContext: safeDialContext,
 		},
 	}
 
