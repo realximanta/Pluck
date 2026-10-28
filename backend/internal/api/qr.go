@@ -62,8 +62,9 @@ type QRResponse struct {
 }
 
 type QRRequest struct {
-	PlanID string `json:"plan_id"`
-	Name   string `json:"name"`
+	PlanID         string `json:"plan_id"`
+	Name           string `json:"name"`
+	TurnstileToken string `json:"turnstile_token"`
 }
 
 func (a *App) HandleQR(w http.ResponseWriter, r *http.Request) {
@@ -82,6 +83,15 @@ func (a *App) HandleQR(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(req.Name) > 40 {
 		req.Name = req.Name[:40]
+	}
+
+	// Validate Turnstile if configured
+	if a.cfg.TurnstileSecretKey != "" {
+		ok, err := a.verifyTurnstile(ctx, req.TurnstileToken)
+		if err != nil || !ok {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "CAPTCHA verification failed. Please refresh and try again."})
+			return
+		}
 	}
 
 	plan, err := GetPlan(req.PlanID)
