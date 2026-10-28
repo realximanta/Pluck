@@ -9,7 +9,8 @@
 <meta property="og:description" content="Open source Android media downloader. Any platform, any quality, any file type.">
 <meta name="theme-color" content="#020617">
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<!-- Cloudflare Turnstile Script (Explicit Rendering) -->
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
 <script>
 tailwind.config = {
   theme: {
@@ -232,8 +233,8 @@ tailwind.config = {
       <label class="block text-sm text-slate-400 mb-2">Your name</label>
       <input id="purchaseName" type="text" maxlength="40" placeholder="Shown on your key" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm mb-4 focus:outline-none focus:border-emerald-500 text-slate-100">
       
-      <!-- Turnstile Widget -->
-      <div class="cf-turnstile mb-4" data-sitekey="0x4AAAAAAA_OI-1nq0776aq" data-callback="onTurnstileSuccess" data-theme="dark"></div>
+      <!-- Turnstile Widget Container (Explicit Rendering) -->
+      <div id="turnstile-container" class="mb-4 flex justify-center"></div>
       
       <button onclick="generateQR()" id="genBtn" class="w-full bg-brand-500 hover:bg-brand-400 text-slate-950 font-semibold rounded-lg py-2 text-sm disabled:opacity-50 transition">Generate QR</button>
       <p id="stepErr1" class="text-red-400 text-xs mt-3 hidden"></p>
@@ -291,11 +292,6 @@ tailwind.config = {
   let countdownTimer = null;
   let currentQrBase64 = null;
   let turnstileToken = null;
-
-  // Turnstile Callback
-  window.onTurnstileSuccess = function(token) {
-    turnstileToken = token;
-  };
 
   // --- Site Init ---
   function initSite() {
@@ -389,17 +385,32 @@ tailwind.config = {
     currentQrBase64 = null;
     turnstileToken = null;
     
-    // Reset Turnstile widget
-    if (window.turnstile) {
-      window.turnstile.reset();
-    }
-
     document.getElementById('modalPlan').textContent = plan.name + ' plan';
     document.getElementById('modalPrice').textContent = '₹' + plan.amount + ' · ' + plan.duration_days + ' days';
     document.getElementById('modal').classList.remove('hidden');
     showStep('stepName');
     document.getElementById('purchaseName').value = '';
     document.getElementById('purchaseName').focus();
+
+    // EXPLICIT TURNSTILE RENDERING
+    const container = document.getElementById('turnstile-container');
+    if (!container) return;
+
+    if (window.turnstile) {
+      if (container.hasChildNodes()) {
+        // If already rendered, just reset it
+        window.turnstile.reset('#turnstile-container');
+      } else {
+        // Render it for the first time
+        window.turnstile.render('#turnstile-container', {
+          sitekey: '0x4AAAAAAA_OI-1nq0776aq', // Your Site Key
+          theme: 'dark',
+          callback: function(token) {
+            turnstileToken = token;
+          }
+        });
+      }
+    }
   }
 
   window.closeModal = function() {
