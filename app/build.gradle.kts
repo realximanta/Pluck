@@ -13,8 +13,8 @@ android {
         applicationId = "xyz.ximanta.pluck"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "2.0.3"
+        versionCode = 7
+        versionName = "3.0.0"
 
         vectorDrawables { useSupportLibrary = true }
 
