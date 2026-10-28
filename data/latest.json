@@ -1,9 +1,9 @@
 {
-  "tag": "v2.0.3",
-  "version": "2.0.3",
-  "versionCode": 6,
-  "apk_url": "https://github.com/realximanta/Pluck/releases/download/v2.0.3/pluck-v2.0.3.apk",
-  "apk_size": 12284949,
-  "release_url": "https://github.com/realximanta/Pluck/releases/tag/v2.0.3",
-  "published_at": "2026-10-27T13:50:31Z"
+  "tag": "v3.0.0",
+  "version": "3.0.0",
+  "versionCode": 7,
+  "apk_url": "https://github.com/realximanta/Pluck/releases/download/v3.0.0/pluck-v3.0.0.apk",
+  "apk_size": 12285045,
+  "release_url": "https://github.com/realximanta/Pluck/releases/tag/v3.0.0",
+  "published_at": "2026-10-28T18:07:23Z"
 }
