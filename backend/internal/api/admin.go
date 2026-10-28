@@ -14,28 +14,60 @@ import (
 //go:embed admin.html
 var adminHTML string
 
-// requireAdmin returns true if the request carries the correct admin key.
+// requireAdmin returns true if the request carries a valid admin cookie.
 func (a *App) requireAdmin(r *http.Request) bool {
-	got := r.Header.Get("X-Admin-Key")
-	if got == "" {
-		if c, err := r.Cookie("admin_key"); err == nil {
-			got = c.Value
-		}
-	}
-	if got == "" {
+	cookie, err := r.Cookie("pluck_admin_session")
+	if err != nil {
 		return false
 	}
-	return subtle.ConstantTimeCompare([]byte(got), []byte(a.cfg.AdminKey)) == 1
+	return subtle.ConstantTimeCompare([]byte(cookie.Value), []byte(a.cfg.AdminKey)) == 1
 }
 
-// HandleAdminPage is GET /admin — returns the HTML shell.
 func (a *App) HandleAdminPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(adminHTML))
 }
 
-// AdminCreateRequest is the body of POST /admin/keys.
+type AdminLoginRequest struct {
+	Key string `json:"key"`
+}
+
+func (a *App) HandleAdminLogin(w http.ResponseWriter, r *http.Request) {
+	var req AdminLoginRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
+		return
+	}
+	if subtle.ConstantTimeCompare([]byte(req.Key), []byte(a.cfg.AdminKey)) != 1 {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "pluck_admin_session",
+		Value:    a.cfg.AdminKey,
+		Path:     "/",
+		MaxAge:   86400, // 24 hours
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (a *App) HandleAdminLogout(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "pluck_admin_session",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+	})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "logged_out"})
+}
+
 type AdminCreateRequest struct {
 	Name         string `json:"name"`
 	PlanID       string `json:"plan_id"`
@@ -43,7 +75,6 @@ type AdminCreateRequest struct {
 	ExpiresAt    int64  `json:"expires_at"`
 }
 
-// HandleAdminCreate is POST /admin/keys — creates a manual key.
 func (a *App) HandleAdminCreate(w http.ResponseWriter, r *http.Request) {
 	if !a.requireAdmin(r) {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
@@ -105,7 +136,6 @@ func (a *App) HandleAdminCreate(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, rec)
 }
 
-// HandleAdminRevoke is POST /admin/revoke — body {"key":"..."}.
 func (a *App) HandleAdminRevoke(w http.ResponseWriter, r *http.Request) {
 	if !a.requireAdmin(r) {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
@@ -131,7 +161,6 @@ func (a *App) HandleAdminRevoke(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, rec)
 }
 
-// HandleAdminList is GET /admin/keys.json — returns all keys, newest first.
 func (a *App) HandleAdminList(w http.ResponseWriter, r *http.Request) {
 	if !a.requireAdmin(r) {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
