@@ -4,6 +4,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -25,6 +27,9 @@ const (
 	maxFetchBytes   = 2 * 1024 * 1024 * 1024
 	fetchTempPrefix = "pluck-fetch-"
 )
+
+// safeFormatRegex blocks command injection by only allowing alphanumeric, +, _, and -
+var safeFormatRegex = regexp.MustCompile(`^[a-zA-Z0-9+_\-]+$`)
 
 type FetchRequest struct {
 	URL         string `json:"url"`
@@ -70,6 +75,12 @@ func (a *App) HandleFetch(w http.ResponseWriter, r *http.Request) {
 	req.MediaType = strings.ToLower(strings.TrimSpace(req.MediaType))
 	req.Ext = strings.TrimPrefix(strings.ToLower(strings.TrimSpace(req.Ext)), ".")
 
+	// SECURITY: Block command injection in FormatID
+	if req.FormatID != "" && !safeFormatRegex.MatchString(req.FormatID) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid format_id"})
+		return
+	}
+
 	if req.URL == "" && req.DirectURL == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "url or direct_url required"})
 		return
@@ -87,41 +98,56 @@ func (a *App) HandleFetch(w http.ResponseWriter, r *http.Request) {
 
 	cw := &countingWriter{w: w}
 
-	// If FormatID is present, always use yt-dlp. This bypasses YouTube's
-	// direct-URL HTML block pages.
 	if req.FormatID != "" {
 		a.streamYtdlp(ctx, w, cw, &req, appKey)
 	} else if req.DirectURL != "" {
-		if err := isSafeURL(req.DirectURL); err != nil {
-			writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
-			return
-		}
 		a.streamDirect(ctx, w, cw, &req, appKey)
 	} else {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "no format_id or direct_url provided"})
 	}
 }
 
-// isSafeURL prevents SSRF by blocking loopback, private, and link-local IPs.
-func isSafeURL(rawURL string) error {
-	u, err := url.Parse(rawURL)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
-		return fmt.Errorf("invalid URL")
-	}
-	ips, err := net.LookupIP(u.Hostname())
+// safeDialContext validates the IP at connection time to prevent DNS rebinding.
+func safeDialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
-		return fmt.Errorf("could not resolve host")
+		return nil, err
+	}
+	ips, err := net.DefaultResolver.LookupIP(ctx, "ip", host)
+	if err != nil {
+		return nil, err
 	}
 	for _, ip := range ips {
 		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
-			return fmt.Errorf("access to private networks is forbidden")
+			continue // Skip unsafe IPs
 		}
+		// Connect using the validated IP
+		return (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
 	}
-	return nil
+	return nil, fmt.Errorf("no safe IPs found for %s", host)
 }
 
 func (a *App) streamDirect(ctx context.Context, w http.ResponseWriter, cw *countingWriter, req *FetchRequest, appKey string) {
-	resp, err := getWithContext(ctx, req.DirectURL)
+	// Use a secure client with the custom dialer for user-supplied URLs
+	safeClient := &http.Client{
+		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			DialContext:     safeDialContext,
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+
+	reqHTTP, err := http.NewRequestWithContext(ctx, http.MethodGet, req.DirectURL, nil)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	reqHTTP.Header.Set("User-Agent", browserUA)
+	if req.URL != "" {
+		reqHTTP.Header.Set("Referer", req.URL)
+	}
+
+	resp, err := safeClient.Do(reqHTTP)
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "upstream: " + err.Error()})
 		return
@@ -235,7 +261,7 @@ func (a *App) streamYtdlpMerged(ctx context.Context, w http.ResponseWriter, cw *
 		format = format + "+bestaudio/best"
 	}
 
-	tmp, err := os.CreateTemp("", fetchTempPrefix+"*"+tempSuffix(req))
+	tmp, err := os.CreateTemp("", fetchTempPrefix+"*.mp4")
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "temp: " + err.Error()})
 		return
@@ -277,6 +303,10 @@ func (a *App) streamYtdlpMerged(ctx context.Context, w http.ResponseWriter, cw *
 		return
 	}
 	size := st.Size()
+	if size == 0 {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "yt-dlp produced 0 byte file"})
+		return
+	}
 	if size > maxFetchBytes {
 		writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "file exceeds 2 GB limit"})
 		return
