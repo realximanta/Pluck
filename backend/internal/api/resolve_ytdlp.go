@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const ytdlpResolveTimeout = 20 * time.Second
+const ytdlpResolveTimeout = 25 * time.Second
 
 type ytdlpDump struct {
 	Title        string        `json:"title"`
@@ -52,7 +52,7 @@ func resolveViaYtdlp(parent context.Context, mediaURL string) (*ResolveResponse,
 		"--no-playlist",
 		"--no-check-certificates",
 		"--socket-timeout", "10",
-		"--extractor-args", "youtube:player_client=android",
+		"--extractor-args", "youtube:player_client=default,tv,web",
 		"--", mediaURL,
 	)
 	out, err := cmd.Output()
@@ -117,6 +117,9 @@ func buildYtdlpResponse(originalURL string, d *ytdlpDump) *ResolveResponse {
 			HasVideo:  hasV,
 			HasAudio:  hasA,
 			Class:     classFromExt(f.Ext),
+			// We intentionally leave DirectURL empty for yt-dlp formats.
+			// YouTube serves an HTML block page (403) if you try to direct-download.
+			// The app will send back FormatID, and the backend will use yt-dlp to fetch it.
 		}
 		switch {
 		case isImageExt(f.Ext) && !hasV && !hasA:
