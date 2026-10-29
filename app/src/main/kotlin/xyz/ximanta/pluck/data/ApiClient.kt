@@ -1,3 +1,4 @@
+// language: Kotlin, file: app/src/main/kotlin/xyz/ximanta/pluck/data/ApiClient.kt
 package xyz.ximanta.pluck.data
 
 import kotlinx.coroutines.Dispatchers
@@ -56,6 +57,7 @@ class ApiClient(
             val request = Request.Builder()
                 .url("$baseUrl/api/history")
                 .header("X-App-Key", key.uppercase())
+                .header("X-Client-Type", "app")
                 .get()
                 .build()
             execute(request)
@@ -124,6 +126,13 @@ class ApiClient(
                     }
                 }
                 onProgress(bytesRead, totalBytes)
+                
+                // Verify size if known
+                if (totalBytes != null && bytesRead != totalBytes) {
+                     destination.delete()
+                     return@withContext Result.failure(ApiException(-1, "Incomplete download"))
+                }
+
                 Result.success(FetchResult(filename, contentType, bytesRead, destination))
             }
         } catch (e: Exception) {
@@ -135,7 +144,7 @@ class ApiClient(
     private suspend inline fun <reified T> callGet(path: String, auth: Boolean): Result<T> =
         withContext(Dispatchers.IO) {
             try {
-                val builder = Request.Builder().url(baseUrl + path).get()
+                val builder = Request.Builder().url(baseUrl + path).get().header("X-Client-Type", "app")
                 val request = if (auth) builder.applyAuth().build() else builder.build()
                 execute(request)
             } catch (e: Exception) {
@@ -148,6 +157,7 @@ class ApiClient(
             try {
                 val builder = Request.Builder()
                     .url(baseUrl + path)
+                    .header("X-Client-Type", "app")
                     .post(body.toRequestBody(JSON_MEDIA_TYPE))
                 val request = if (auth) builder.applyAuth().build() else builder.build()
                 execute(request)
