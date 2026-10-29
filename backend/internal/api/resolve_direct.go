@@ -148,7 +148,8 @@ var extClassMap = map[string]FileClass{
 	"odp": ClassDocument, "rtf": ClassDocument, "epub": ClassDocument,
 	"mobi": ClassDocument, "azw3": ClassDocument, "djvu": ClassDocument,
 
-	"py": ClassCode, "js": ClassCode, "ts": ClassCode, "go": ClassCode,
+	// "ts" removed from here because it's already in ClassVideo
+	"py": ClassCode, "js": ClassCode, "go": ClassCode,
 	"rs": ClassCode, "c": ClassCode, "cpp": ClassCode, "h": ClassCode,
 	"hpp": ClassCode, "java": ClassCode, "kt": ClassCode, "swift": ClassCode,
 	"rb": ClassCode, "php": ClassCode, "cs": ClassCode, "sh": ClassCode,
