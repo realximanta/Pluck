@@ -17,9 +17,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
     ffmpeg \
+    unzip \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install --break-system-packages --no-cache-dir yt-dlp
+# Install Deno (JS runtime for yt-dlp YouTube bypass)
+RUN curl -fsSL https://deno.land/install.sh | sh
+ENV DENO_INSTALL="/root/.deno"
+ENV PATH="$DENO_INSTALL/bin:$PATH"
+
+# Install yt-dlp with default extras (includes curl_cffi for Cloudflare bypass)
+RUN pip3 install --break-system-packages --no-cache-dir "yt-dlp[default]"
 
 WORKDIR /app
 COPY --from=builder /build/pluck /app/pluck
