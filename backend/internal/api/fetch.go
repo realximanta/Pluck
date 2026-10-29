@@ -4,6 +4,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -95,16 +96,16 @@ func (a *App) HandleFetch(w http.ResponseWriter, r *http.Request) {
 
 	cw := &countingWriter{w: w}
 
-	if req.FormatID != "" {
-		a.streamYtdlp(ctx, w, cw, &req, appKey)
-	} else if req.DirectURL != "" {
+	// Route based on parameters
+	if req.DirectURL != "" {
 		a.streamDirect(ctx, w, cw, &req, appKey)
+	} else if req.FormatID != "" {
+		a.streamYtdlp(ctx, w, cw, &req, appKey)
 	} else {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "no format_id or direct_url provided"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "no direct_url or format_id provided"})
 	}
 }
 
-// safeDialContext validates the IP at connection time to prevent DNS rebinding.
 func safeDialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -115,9 +116,8 @@ func safeDialContext(ctx context.Context, network, addr string) (net.Conn, error
 		return nil, err
 	}
 	for _, ip := range ips {
-		// SECURITY: Block unspecified (0.0.0.0), loopback, private, and link-local IPs
 		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
-			continue 
+			continue
 		}
 		return (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
 	}
@@ -125,11 +125,11 @@ func safeDialContext(ctx context.Context, network, addr string) (net.Conn, error
 }
 
 func (a *App) streamDirect(ctx context.Context, w http.ResponseWriter, cw *countingWriter, req *FetchRequest, appKey string) {
-	// SECURITY: TLS verification is enabled (InsecureSkipVerify removed) to prevent MITM.
+	// Removed total timeout. TLS verification enabled.
 	safeClient := &http.Client{
-		Timeout: 30 * time.Second,
 		Transport: &http.Transport{
 			DialContext: safeDialContext,
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: false}, // SECURITY: Enabled verification
 		},
 	}
 
@@ -257,14 +257,15 @@ func (a *App) streamYtdlpMerged(ctx context.Context, w http.ResponseWriter, cw *
 		format = format + "+bestaudio/best"
 	}
 
-	tmp, err := os.CreateTemp("", fetchTempPrefix+"*.mp4")
+	// Create a temp directory, not a file. This prevents yt-dlp from thinking the file is already downloaded.
+	tmpDir, err := os.MkdirTemp("", fetchTempPrefix)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "temp: " + err.Error()})
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "temp dir: " + err.Error()})
 		return
 	}
-	tmpName := tmp.Name()
-	tmp.Close()
-	defer os.Remove(tmpName)
+	defer os.RemoveAll(tmpDir)
+
+	tmpPath := filepath.Join(tmpDir, "media.mp4")
 
 	args := []string{
 		"--no-warnings", "--no-playlist", "--no-check-certificates",
@@ -272,13 +273,14 @@ func (a *App) streamYtdlpMerged(ctx context.Context, w http.ResponseWriter, cw *
 		"--extractor-args", "youtube:player_client=default,tv,web",
 		"--merge-output-format", "mp4",
 		"-f", format,
-		"-o", tmpName,
+		"-o", tmpPath,
 		"--", req.URL,
 	}
 	cmd := exec.CommandContext(ctx, "yt-dlp", args...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
+	// Wait for download to complete BEFORE sending HTTP 200
 	if err := cmd.Run(); err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{
 			"error": "yt-dlp merge: " + truncate(stderr.String(), 300),
@@ -286,7 +288,7 @@ func (a *App) streamYtdlpMerged(ctx context.Context, w http.ResponseWriter, cw *
 		return
 	}
 
-	f, err := os.Open(tmpName)
+	f, err := os.Open(tmpPath)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "open temp: " + err.Error()})
 		return
@@ -307,6 +309,7 @@ func (a *App) streamYtdlpMerged(ctx context.Context, w http.ResponseWriter, cw *
 		writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "file exceeds 2 GB limit"})
 		return
 	}
+	
 	if filepath.Ext(filename) == "" {
 		filename = strings.TrimSuffix(filename, ".") + ".mp4"
 		contentType = "video/mp4"
@@ -321,14 +324,6 @@ func (a *App) streamYtdlpMerged(ctx context.Context, w http.ResponseWriter, cw *
 	}
 
 	saveFetchHistory(a, appKey, req, cw.n, filename)
-}
-
-func tempSuffix(req *FetchRequest) string {
-	ext := req.Ext
-	if ext == "" {
-		ext = "mp4"
-	}
-	return "." + ext
 }
 
 func copyBounded(ctx context.Context, dst io.Writer, src io.Reader, max int64) error {
@@ -409,44 +404,28 @@ func extFor(req *FetchRequest, filename string) string {
 
 func extForMediaType(mediaType string) string {
 	switch mediaType {
-	case "video":
-		return "mp4"
-	case "audio":
-		return "m4a"
-	case "image":
-		return "jpg"
-	case "archive":
-		return "zip"
-	case "document":
-		return "pdf"
-	case "code":
-		return "txt"
-	case "text":
-		return "txt"
+	case "video": return "mp4"
+	case "audio": return "m4a"
+	case "image": return "jpg"
+	case "archive": return "zip"
+	case "document": return "pdf"
+	case "code": return "txt"
+	case "text": return "txt"
 	}
 	return "bin"
 }
 
 func mimeForExt(ext string) string {
-	if ext == "" {
-		return ""
-	}
+	if ext == "" { return "" }
 	return mime.TypeByExtension("." + strings.TrimPrefix(ext, "."))
 }
 
 func saveFetchHistory(a *App, appKey string, req *FetchRequest, size int64, filename string) {
-	if size <= 0 {
-		return
-	}
+	if size <= 0 { return }
 	entry := &HistoryEntry{
-		URL:         req.URL,
-		Platform:    req.Platform,
-		Title:       firstNonEmpty(req.Title, filename),
-		Thumbnail:   req.Thumbnail,
-		MediaType:   req.MediaType,
-		Quality:     req.Quality,
-		SizeBytes:   size,
-		DurationSec: req.DurationSec,
+		URL: req.URL, Platform: req.Platform, Title: firstNonEmpty(req.Title, filename),
+		Thumbnail: req.Thumbnail, MediaType: req.MediaType, Quality: req.Quality,
+		SizeBytes: size, DurationSec: req.DurationSec,
 	}
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
