@@ -58,10 +58,6 @@ tailwind.config = {
   .stat-number { font-family: 'Instrument Serif', serif; font-size: clamp(2.5rem, 5vw, 4rem); line-height: 1; letter-spacing: -0.03em; }
   .divider-gradient { height: 1px; background: linear-gradient(90deg, transparent, rgba(148,163,184,0.22), transparent); }
   #app { min-height: 100vh; }
-  .guard-screen { position: fixed; inset: 0; background: #020617; z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 2rem; text-align: center; }
-  .guard-inner { max-width: 26rem; padding: 2.25rem; border: 1px solid rgba(239,68,68,0.35); background: rgba(239,68,68,0.06); border-radius: 1rem; }
-  .guard-title { font-family: 'Instrument Serif', serif; font-size: 1.6rem; color: #f87171; margin-bottom: .5rem; }
-  .guard-text { font-size: .875rem; color: #94a3b8; line-height: 1.55; }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 </style>
 </head>
@@ -392,23 +388,29 @@ tailwind.config = {
     document.getElementById('purchaseName').value = '';
     document.getElementById('purchaseName').focus();
 
-    // EXPLICIT TURNSTILE RENDERING
-    const container = document.getElementById('turnstile-container');
-    if (!container) return;
+    // Robust Turnstile rendering
+    function tryRenderTurnstile() {
+      const container = document.getElementById('turnstile-container');
+      if (!container) return;
 
-    if (window.turnstile) {
-      if (container.hasChildNodes()) {
-        window.turnstile.reset('#turnstile-container');
+      if (window.turnstile) {
+        if (container.hasChildNodes()) {
+          window.turnstile.reset('#turnstile-container');
+        } else {
+          window.turnstile.render('#turnstile-container', {
+            sitekey: '0x4AAAAAAA_PFhVfR-zZ8gQm', // Your actual Site Key
+            theme: 'dark',
+            callback: function(token) {
+              turnstileToken = token;
+            }
+          });
+        }
       } else {
-        window.turnstile.render('#turnstile-container', {
-          sitekey: '0x4AAAAAAA_PFhVfR-zZ8gQm', // Your actual Site Key
-          theme: 'dark',
-          callback: function(token) {
-            turnstileToken = token;
-          }
-        });
+        setTimeout(tryRenderTurnstile, 100);
       }
     }
+
+    tryRenderTurnstile();
   }
 
   window.closeModal = function() {
@@ -564,42 +566,7 @@ tailwind.config = {
     if (e.target.id === 'modal') closeModal();
   });
 
-  // --- Devtools deterrence ---
-  document.addEventListener('keydown', function (e) {
-    const k = (e.key || '').toLowerCase();
-    const blocked = e.key === 'F12' || (e.ctrlKey && e.shiftKey && ['i','j','c','k'].includes(k)) || (e.ctrlKey && ['u','s','p'].includes(k)) || (e.metaKey && e.altKey && ['i','j','c'].includes(k)) || (e.metaKey && ['u','s','p'].includes(k));
-    if (blocked) { e.preventDefault(); e.stopPropagation(); return false; }
-  }, true);
-
-  document.addEventListener('contextmenu', function (e) {
-    e.preventDefault(); e.stopPropagation(); return false;
-  }, true);
-
-  let savedHTML = null, guardShown = false;
-  function devtoolsOpen() {
-    const w = window.outerWidth - window.innerWidth;
-    const h = window.outerHeight - window.innerHeight;
-    return w > 160 || h > 160;
-  }
-  function showGuard() {
-    if (guardShown) return;
-    const app = document.getElementById('app');
-    if (!app) return;
-    savedHTML = app.innerHTML;
-    guardShown = true;
-    app.innerHTML = '<div class="guard-screen"><div class="guard-inner"><div class="guard-title">Inspect mode detected</div><div class="guard-text">Please close developer tools to continue browsing Pluck.</div></div></div>';
-  }
-  function hideGuard() {
-    if (!guardShown || savedHTML === null) return;
-    const app = document.getElementById('app');
-    if (!app) return;
-    app.innerHTML = savedHTML;
-    savedHTML = null;
-    guardShown = false;
-    try { window.__reinitSite && window.__reinitSite(); } catch (e) {}
-  }
-  setInterval(function () { if (devtoolsOpen()) showGuard(); else hideGuard(); }, 400);
-  setInterval(function () { try { console.clear(); } catch (e) {} }, 1500);
+  // --- Devtools deterrence REMOVED to allow Turnstile to function ---
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initSite);
