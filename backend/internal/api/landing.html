@@ -398,12 +398,10 @@ tailwind.config = {
 
     if (window.turnstile) {
       if (container.hasChildNodes()) {
-        // If already rendered, just reset it
         window.turnstile.reset('#turnstile-container');
       } else {
-        // Render it for the first time
         window.turnstile.render('#turnstile-container', {
-          sitekey: '0x4AAAAAAA_OI-1nq0776aq', // Your Site Key
+          sitekey: '0x4AAAAAAA_PFhVfR-zZ8gQm', // Your actual Site Key
           theme: 'dark',
           callback: function(token) {
             turnstileToken = token;
