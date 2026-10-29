@@ -30,21 +30,13 @@ type Reservation struct {
 
 func (a *App) ReserveFingerprint(ctx context.Context, fp string, r Reservation) (*Reservation, bool, error) {
 	_, found, err := a.kv.Get(ctx, fpPrefix+fp)
-	if err != nil {
-		return nil, false, err
-	}
-	if found {
-		return nil, true, nil
-	}
+	if err != nil { return nil, false, err }
+	if found { return nil, true, nil }
 	r.FP = fp
 	r.CreatedAt = time.Now().Unix()
 	data, err := json.Marshal(&r)
-	if err != nil {
-		return nil, false, err
-	}
-	if err := a.kv.Put(ctx, fpPrefix+fp, data, fpTTLSeconds); err != nil {
-		return nil, false, err
-	}
+	if err != nil { return nil, false, err }
+	if err := a.kv.Put(ctx, fpPrefix+fp, data, fpTTLSeconds); err != nil { return nil, false, err }
 	return &r, false, nil
 }
 
@@ -85,8 +77,8 @@ func (a *App) HandleQR(w http.ResponseWriter, r *http.Request) {
 		req.Name = req.Name[:40]
 	}
 
-	// Validate Turnstile if configured
-	if a.cfg.TurnstileSecretKey != "" {
+	// Validate Turnstile ONLY if request is NOT from the app
+	if a.cfg.TurnstileSecretKey != "" && r.Header.Get("X-Client-Type") != "app" {
 		ok, err := a.verifyTurnstile(ctx, req.TurnstileToken)
 		if err != nil || !ok {
 			writeJSON(w, http.StatusForbidden, map[string]string{"error": "CAPTCHA verification failed. Please refresh and try again."})
@@ -116,9 +108,7 @@ func (a *App) HandleQR(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "reserve: " + err.Error()})
 			return
 		}
-		if conflict {
-			continue
-		}
+		if conflict { continue }
 		_ = res
 		chosenFP = fp
 		qrBytes = img
@@ -142,9 +132,7 @@ func (a *App) HandleQR(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) callQRAPI(ctx context.Context, baseAmount int) (string, []byte, error) {
 	u, err := url.Parse(a.cfg.AutopayQRURL)
-	if err != nil {
-		return "", nil, err
-	}
+	if err != nil { return "", nil, err }
 	q := u.Query()
 	q.Set("upi", a.cfg.AutopayUPI)
 	q.Set("amount", strconv.Itoa(baseAmount))
@@ -156,13 +144,9 @@ func (a *App) callQRAPI(ctx context.Context, baseAmount int) (string, []byte, er
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, u.String(), nil)
-	if err != nil {
-		return "", nil, err
-	}
+	if err != nil { return "", nil, err }
 	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", nil, err
-	}
+	if err != nil { return "", nil, err }
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -171,20 +155,12 @@ func (a *App) callQRAPI(ctx context.Context, baseAmount int) (string, []byte, er
 	}
 
 	fp := resp.Header.Get("X-Final-Amount")
-	if fp == "" {
-		return "", nil, fmt.Errorf("missing X-Final-Amount header")
-	}
-	if _, err := strconv.ParseFloat(fp, 64); err != nil {
-		return "", nil, fmt.Errorf("bad X-Final-Amount %q", fp)
-	}
+	if fp == "" { return "", nil, fmt.Errorf("missing X-Final-Amount header") }
+	if _, err := strconv.ParseFloat(fp, 64); err != nil { return "", nil, fmt.Errorf("bad X-Final-Amount %q", fp) }
 
 	img, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", nil, err
-	}
-	if len(img) == 0 {
-		return "", nil, fmt.Errorf("empty qr body")
-	}
+	if err != nil { return "", nil, err }
+	if len(img) == 0 { return "", nil, fmt.Errorf("empty qr body") }
 	return fp, img, nil
 }
 
@@ -196,9 +172,7 @@ func randomRemark(n int) string {
 	b.Grow(n)
 	for i := 0; i < n; i++ {
 		v, err := rand.Int(rand.Reader, max)
-		if err != nil {
-			return "PLUCK00000"
-		}
+		if err != nil { return "PLUCK00000" }
 		b.WriteByte(remarkAlphabet[v.Int64()])
 	}
 	return b.String()
