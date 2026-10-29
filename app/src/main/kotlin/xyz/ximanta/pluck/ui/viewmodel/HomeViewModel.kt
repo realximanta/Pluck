@@ -1,3 +1,4 @@
+// language: Kotlin, file: app/src/main/kotlin/xyz/ximanta/pluck/ui/viewmodel/HomeViewModel.kt
 package xyz.ximanta.pluck.ui.viewmodel
 
 import android.content.Context
@@ -128,15 +129,19 @@ class HomeViewModel(
         val format = pick.format
 
         val fallbackName = buildFilename(resolve, format, pick.mediaType)
-        val destination = FileSaver.destinationFor(context, pick.mediaType, fallbackName)
+        val tempFile = File(context.cacheDir, fallbackName)
 
         viewModelScope.launch {
             _fetchState.value = HomeFetchState.Downloading(0L, null, null, "Starting…")
+            
+            // CRITICAL FIX: Only send directUrl if it exists. Otherwise send formatId.
+            val directUrl = format.directUrl.takeIf { it.isNotBlank() }
+            val formatId = format.formatId.takeIf { it.isNotBlank() && directUrl == null }
+
             val request = FetchRequest(
                 url = resolve.url,
-                // We rely on FormatID for all media sites. The backend will use yt-dlp.
-                formatId = format.formatId.takeIf { it.isNotBlank() },
-                directUrl = format.directUrl.takeIf { it.isNotBlank() && format.formatId.isBlank() },
+                formatId = formatId,
+                directUrl = directUrl,
                 mediaType = pick.mediaType,
                 mergeAudio = format.note.contains("merge", ignoreCase = true),
                 filename = format.filename.takeIf { it.isNotBlank() },
@@ -148,7 +153,7 @@ class HomeViewModel(
                 durationSec = resolve.durationSec
             )
 
-            apiClient.fetch(request, destination) { bytes, total ->
+            apiClient.fetch(request, tempFile) { bytes, total ->
                 _fetchState.value = HomeFetchState.Downloading(
                     bytesRead = bytes,
                     totalBytes = total,
@@ -156,16 +161,18 @@ class HomeViewModel(
                     label = labelFor(bytes, total)
                 )
             }.onSuccess { result ->
-                val display = result.file.name
-                val location = FileSaver.displayPath(context, pick.mediaType)
+                val displayName = if (result.filename.isNotBlank()) result.filename else fallbackName
+                val finalPath = FileSaver.saveToPublic(context, result.file, pick.mediaType, displayName)
+                FileSaver.deleteQuietly(result.file)
+                
                 _fetchState.value = HomeFetchState.Success(
-                    file = result.file,
-                    displayName = display,
-                    savedAt = location
+                    file = File(finalPath),
+                    displayName = displayName,
+                    savedAt = finalPath
                 )
                 refreshHistory()
             }.onFailure { e ->
-                FileSaver.deleteQuietly(destination)
+                FileSaver.deleteQuietly(tempFile)
                 _fetchState.value = HomeFetchState.Error(humanize(e))
             }
         }
