@@ -1,4 +1,3 @@
-// language: Kotlin, file: app/src/main/kotlin/xyz/ximanta/pluck/ui/viewmodel/HomeViewModel.kt
 package xyz.ximanta.pluck.ui.viewmodel
 
 import android.content.Context
@@ -134,7 +133,7 @@ class HomeViewModel(
         viewModelScope.launch {
             _fetchState.value = HomeFetchState.Downloading(0L, null, null, "Starting…")
             
-            // CRITICAL FIX: Only send directUrl if it exists. Otherwise send formatId.
+            // Send directUrl if present, otherwise formatId
             val directUrl = format.directUrl.takeIf { it.isNotBlank() }
             val formatId = format.formatId.takeIf { it.isNotBlank() && directUrl == null }
 
@@ -161,9 +160,10 @@ class HomeViewModel(
                     label = labelFor(bytes, total)
                 )
             }.onSuccess { result ->
+                // Move from cache to public directory (Movies/Pluck, etc.)
                 val displayName = if (result.filename.isNotBlank()) result.filename else fallbackName
                 val finalPath = FileSaver.saveToPublic(context, result.file, pick.mediaType, displayName)
-                FileSaver.deleteQuietly(result.file)
+                FileSaver.deleteQuietly(result.file) // Delete temp file
                 
                 _fetchState.value = HomeFetchState.Success(
                     file = File(finalPath),
